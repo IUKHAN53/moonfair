@@ -1,0 +1,75 @@
+============ 2d OVERLAYS ============ -->
+<div class="dv-opt" id="2d">
+  <div class="dv-olabel"><a class="dv-oid" href="#2d">2d</a>Shared overlays — win, lose, pause, reward (same panel + button family everywhere)</div>
+  <div class="dv-card" style="width:720px;padding:20px;display:flex;gap:16px;flex-wrap:wrap;background:#131126">
+    <!-- WIN -->
+    <div data-screen-label="Overlay — Win" style="position:relative;width:210px;height:420px;border-radius:20px;overflow:hidden;background:linear-gradient(180deg,#2D2A52,#1E1B3A);flex:none">
+      <div style="position:absolute;inset:0;background:rgba(16,14,30,.55)"></div>
+      <div style="position:absolute;top:24px;left:20px;color:#FFD98E;font-size:11px">✦</div>
+      <div style="position:absolute;top:44px;right:26px;color:#5EEAD4;font-size:9px">✦</div>
+      <div style="position:absolute;top:70px;left:44px;color:#B4A7FF;font-size:8px">✦</div>
+      <div style="position:absolute;left:14px;right:14px;top:88px;border-radius:22px;background:#262347;border:1px solid rgba(255,217,142,.35);box-shadow:0 18px 40px rgba(0,0,0,.5);padding:18px 14px;text-align:center">
+        <div style="font:800 22px 'Baloo 2';background:linear-gradient(180deg,#FFF3D6,#FFB454);-webkit-background-clip:text;background-clip:text;color:transparent">Wonderful!</div>
+        <div style="display:flex;justify-content:center;gap:5px;margin-top:8px">
+          <span style="font-size:26px;color:#FFD98E;text-shadow:0 0 12px rgba(255,217,142,.6)">★</span>
+          <span style="font-size:32px;color:#FFD98E;text-shadow:0 0 14px rgba(255,217,142,.7);margin-top:-6px">★</span>
+          <span style="font-size:26px;color:rgba(255,217,142,.25)">★</span>
+        </div>
+        <div style="font:700 10px 'Nunito';letter-spacing:2px;color:rgba(244,241,255,.5);margin-top:10px">SCORE</div>
+        <div style="font:800 26px/1 'Baloo 2';color:#FFF6E6">12,480</div>
+        <div style="display:inline-flex;align-items:center;gap:5px;margin-top:8px;padding:4px 12px;border-radius:999px;background:rgba(255,217,142,.15);border:1px solid rgba(255,217,142,.4)"><span style="color:#FFD98E;font-size:11px">★</span><span style="font:800 12px 'Baloo 2';color:#FFD98E">+120</span></div>
+        <div style="height:40px;margin-top:12px;border-radius:999px;display:grid;place-items:center;background:linear-gradient(180deg,#FFC97A,#FFA13E);font:800 14px 'Baloo 2';color:#57330B;box-shadow:inset 0 2px 0 rgba(255,255,255,.5)">Next round</div>
+        <div style="height:36px;margin-top:8px;border-radius:999px;display:grid;place-items:center;border:2px solid rgba(180,167,255,.45);font:800 12px 'Baloo 2';color:#B4A7FF">Replay</div>
+      </div>
+      <div style="position:absolute;bottom:10px;left:0;right:0;text-align:center;font:600 8px ui-monospace,monospace;color:rgba(244,241,255,.4)">win · light confetti, warm flash</div>
+    </div>
+    <!-- LOSE -->
+    <div data-screen-label="Overlay — Lose" style="position:relative;width:210px;height:420px;border-radius:20px;overflow:hidden;background:linear-gradient(180deg,#26224C,#171430);flex:none">
+      <div style="position:absolute;inset:0;background:rgba(12,10,24,.6)"></div>
+      <div style="position:absolute;left:14px;right:14px;top:104px;border-radius:22px;background:#262347;border:1px solid rgba(180,167,255,.3);box-shadow:0 18px 40px rgba(0,0,0,.5);padding:18px 14px;text-align:center">
+        <div style="width:26px;height:34px;margin:0 auto;border-radius:10px;background:linear-gradient(180deg,#6B628F,#4A4470);opacity:.85"></div>
+        <div style="font:800 19px 'Baloo 2';color:#E8E3FF;margin-top:10px">The lanterns dimmed…</div>
+        <div style="font:700 12px 'Nunito';color:rgba(244,241,255,.55);margin-top:4px">So close — 2 trinkets left</div>
+        <div style="height:40px;margin-top:14px;border-radius:999px;display:grid;place-items:center;background:linear-gradient(180deg,#FFC97A,#FFA13E);font:800 14px 'Baloo 2';color:#57330B;box-shadow:inset 0 2px 0 rgba(255,255,255,.5)">Try again</div>
+        <div style="height:36px;margin-top:8px;border-radius:999px;display:grid;place-items:center;border:2px solid rgba(180,167,255,.45);font:800 12px 'Baloo 2';color:#B4A7FF">Back to fair</div>
+      </div>
+      <div style="position:absolute;bottom:10px;left:0;right:0;text-align:center;font:600 8px ui-monospace,monospace;color:rgba(244,241,255,.4)">lose · gentle, never punishing</div>
+    </div>
+    <!-- PAUSE -->
+    <div data-screen-label="Overlay — Pause" style="position:relative;width:210px;height:420px;border-radius:20px;overflow:hidden;background:linear-gradient(180deg,#2A5248,#122720);flex:none">
+      <div style="position:absolute;inset:0;background:rgba(12,10,24,.62);backdrop-filter:blur(2px)"></div>
+      <div style="position:absolute;left:14px;right:14px;top:84px;border-radius:22px;background:#262347;border:1px solid rgba(255,255,255,.12);box-shadow:0 18px 40px rgba(0,0,0,.5);padding:18px 14px;text-align:center">
+        <div style="font:800 20px 'Baloo 2';color:#FFF6E6">Paused</div>
+        <div style="height:44px;margin-top:12px;border-radius:999px;display:grid;place-items:center;background:linear-gradient(180deg,#FFC97A,#FFA13E);font:800 15px 'Baloo 2';color:#57330B;box-shadow:inset 0 2px 0 rgba(255,255,255,.5)">Resume</div>
+        <div style="height:36px;margin-top:8px;border-radius:999px;display:grid;place-items:center;border:2px solid rgba(180,167,255,.45);font:800 12px 'Baloo 2';color:#B4A7FF">Restart</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-top:14px;padding:0 4px">
+          <span style="font:700 12px 'Nunito';color:rgba(244,241,255,.7)">Music</span>
+          <div style="width:44px;height:26px;border-radius:999px;background:linear-gradient(180deg,#4ED4BE,#2FA893);position:relative"><div style="position:absolute;top:3px;right:3px;width:20px;height:20px;border-radius:50%;background:#FFF6E6"></div></div>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-top:10px;padding:0 4px">
+          <span style="font:700 12px 'Nunito';color:rgba(244,241,255,.7)">Sounds</span>
+          <div style="width:44px;height:26px;border-radius:999px;background:rgba(244,241,255,.18);position:relative"><div style="position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:rgba(244,241,255,.6)"></div></div>
+        </div>
+        <div style="font:700 12px 'Nunito';color:rgba(244,241,255,.45);margin-top:14px">Leave to fair</div>
+      </div>
+      <div style="position:absolute;bottom:10px;left:0;right:0;text-align:center;font:600 8px ui-monospace,monospace;color:rgba(244,241,255,.4)">pause · scene dims + blurs</div>
+    </div>
+    <!-- REWARD -->
+    <div data-screen-label="Overlay — Reward" style="position:relative;width:210px;height:420px;border-radius:20px;overflow:hidden;background:linear-gradient(180deg,#2D2A52,#171430);flex:none">
+      <div style="position:absolute;inset:0;background:rgba(16,14,30,.5)"></div>
+      <div style="position:absolute;top:60px;left:50%;width:180px;height:180px;margin-left:-90px;border-radius:50%;background:radial-gradient(circle,rgba(255,217,142,.35),transparent 70%);animation:glowpulse 3s ease-in-out infinite"></div>
+      <div style="position:absolute;left:14px;right:14px;top:96px;border-radius:22px;background:#262347;border:1px solid rgba(255,217,142,.4);box-shadow:0 18px 40px rgba(0,0,0,.5);padding:18px 14px;text-align:center">
+        <div style="width:38px;height:48px;margin:0 auto;border-radius:12px;background:linear-gradient(180deg,#FFD98E,#FFB454);box-shadow:0 0 24px 6px rgba(255,180,84,.55);animation:sway 4s ease-in-out infinite;transform-origin:50% 0"></div>
+        <div style="font:800 19px 'Baloo 2';color:#FFF6E6;margin-top:12px">Evening gift</div>
+        <div style="display:flex;justify-content:center;gap:6px;margin-top:8px">
+          <div style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:999px;background:rgba(255,217,142,.15);border:1px solid rgba(255,217,142,.4)"><span style="color:#FFD98E;font-size:11px">★</span><span style="font:800 12px 'Baloo 2';color:#FFD98E">+150</span></div>
+          <div style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:999px;background:rgba(94,234,212,.12);border:1px solid rgba(94,234,212,.4)"><span style="color:#5EEAD4;font-size:10px">✦</span><span style="font:800 12px 'Baloo 2';color:#5EEAD4">+5</span></div>
+        </div>
+        <div style="height:40px;margin-top:14px;border-radius:999px;display:grid;place-items:center;background:linear-gradient(180deg,#FFC97A,#FFA13E);font:800 14px 'Baloo 2';color:#57330B;box-shadow:inset 0 2px 0 rgba(255,255,255,.5)">Claim</div>
+      </div>
+      <div style="position:absolute;bottom:10px;left:0;right:0;text-align:center;font:600 8px ui-monospace,monospace;color:rgba(244,241,255,.4)">reward · daily gift popup</div>
+    </div>
+  </div>
+</div>
+
+<!-- 

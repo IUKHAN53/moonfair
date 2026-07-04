@@ -1,0 +1,21 @@
+{
+	"id": "grove_01",
+	"name": "Hidden Grove",
+	"time_limit": 90,
+	"scene_image": "",
+	"score_per_item": 150,
+	"items": [
+		{ "id": "spectacles",  "name": "spectacles",   "shape": "ring",    "color": "#FFD98E", "x": 298, "y": 468, "r": 16 },
+		{ "id": "moon_gem",    "name": "moon gem",     "shape": "gem",     "color": "#8FF5E3", "x": 84,  "y": 296, "r": 14 },
+		{ "id": "tiny_lantern","name": "tiny lantern", "shape": "lantern", "color": "#FF7E6B", "x": 332, "y": 214, "r": 13 },
+		{ "id": "silk_ribbon", "name": "silk ribbon",  "shape": "stick",   "color": "#E8DFC8", "x": 140, "y": 608, "r": 15 },
+		{ "id": "pocket_watch","name": "pocket watch", "shape": "watch",   "color": "#FFD98E", "x": 248, "y": 352, "r": 15 },
+		{ "id": "toffee_apple","name": "toffee apple", "shape": "ball",    "color": "#C24E3C", "x": 118, "y": 548, "r": 14 },
+		{ "id": "star_charm",  "name": "star charm",   "shape": "star",    "color": "#FFD98E", "x": 44,  "y": 424, "r": 13 },
+		{ "id": "dream_feather","name": "dream feather","shape": "stick",  "color": "#B4A7FF", "x": 214, "y": 152, "r": 14 },
+		{ "id": "firefly_jar", "name": "firefly jar",  "shape": "lantern", "color": "#5EEAD4", "x": 62,  "y": 176, "r": 14 },
+		{ "id": "carousel_key","name": "carousel key", "shape": "key",     "color": "#FFB454", "x": 306, "y": 588, "r": 15 },
+		{ "id": "paper_fan",   "name": "paper fan",    "shape": "tri",     "color": "#FF9484", "x": 352, "y": 386, "r": 14 },
+		{ "id": "sugar_bell",  "name": "sugar bell",   "shape": "ball",    "color": "#C7BBFF", "x": 186, "y": 512, "r": 12 }
+	]
+}

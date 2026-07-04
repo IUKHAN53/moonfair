@@ -1,0 +1,5 @@
+# Godot
+.godot/
+
+# Regeneratable design artifacts (keep moonfair.dc.html + ref/)
+design/decoded.html

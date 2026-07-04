@@ -1,0 +1,79 @@
+============ LOGO LOCKUPS ============ -->
+<div class="dv-opt" id="1d">
+  <div class="dv-olabel"><a class="dv-oid" href="#1d">1d</a>Logo — "Lumina Arcade" (keep the name), moonrise lockup</div>
+  <div class="dv-card" style="width:320px;height:200px;position:relative;display:grid;place-items:center;background:radial-gradient(circle at 50% 30%,#312C5E,#1E1B3A 75%)">
+    <div style="text-align:center;position:relative">
+      <div style="position:absolute;top:-26px;left:50%;width:34px;height:34px;margin-left:-17px;border-radius:50%;background:#FFF3D6;box-shadow:0 0 26px 8px rgba(255,243,214,.45)"></div>
+      <div style="position:relative;font:800 42px/1 'Baloo 2';background:linear-gradient(180deg,#FFF3D6,#FFB454);-webkit-background-clip:text;background-clip:text;color:transparent;padding-top:14px">Lumina</div>
+      <div style="font:700 13px 'Nunito';letter-spacing:8px;color:#5EEAD4;margin-top:4px">ARCADE</div>
+      <div style="position:absolute;top:6px;right:-18px;color:#B4A7FF;font-size:12px">✦</div>
+      <div style="position:absolute;bottom:-2px;left:-22px;color:#FFD98E;font-size:9px">✦</div>
+    </div>
+  </div>
+</div>
+<div class="dv-opt" id="1e">
+  <div class="dv-olabel"><a class="dv-oid" href="#1e">1e</a>Logo — "Moonfair" (shorter, ownable, says night + carnival)</div>
+  <div class="dv-card" style="width:320px;height:200px;position:relative;display:grid;place-items:center;background:radial-gradient(circle at 50% 35%,#2D2A52,#191636 75%)">
+    <div style="text-align:center;position:relative">
+      <div style="position:relative;width:44px;height:44px;margin:0 auto 8px;border-radius:50%;background:#FFD98E;box-shadow:0 0 24px 6px rgba(255,217,142,.4);overflow:hidden"><div style="position:absolute;top:-6px;left:14px;width:40px;height:40px;border-radius:50%;background:#221E48"></div></div>
+      <div style="font:800 40px/1 'Baloo 2';color:#FFF6E6;text-shadow:0 0 24px rgba(180,167,255,.35)">Moonfair</div>
+      <div style="font:700 11px 'Nunito';letter-spacing:6px;color:#B4A7FF;margin-top:5px">MINIGAME MIDWAY</div>
+    </div>
+  </div>
+</div>
+<div class="dv-opt" id="1f">
+  <div class="dv-olabel"><a class="dv-oid" href="#1f">1f</a>Logo — "Glimmergrounds" (whimsical, place-name feel, scales to "grounds" of many games)</div>
+  <div class="dv-card" style="width:320px;height:200px;position:relative;display:grid;place-items:center;background:radial-gradient(circle at 50% 40%,#33255A,#1E1B3A 78%)">
+    <div style="text-align:center;position:relative;padding:16px 26px;border:2px solid rgba(255,217,142,.5);border-radius:999px">
+      <div style="font:800 30px/1.05 'Baloo 2';color:#FFF6E6">Glimmer<span style="background:linear-gradient(180deg,#8FF5E3,#3FBFA9);-webkit-background-clip:text;background-clip:text;color:transparent">grounds</span></div>
+      <div style="font:700 10px 'Nunito';letter-spacing:5px;color:rgba(255,217,142,.8);margin-top:6px">OPEN AFTER DARK</div>
+      <div style="position:absolute;top:-8px;left:34px;color:#FFD98E;font-size:13px">✦</div>
+      <div style="position:absolute;bottom:-7px;right:44px;color:#5EEAD4;font-size:10px">✦</div>
+    </div>
+  </div>
+</div>
+
+</div>
+<p class="dv-next">Try next: "build out <a class="dv-oid" href="#1a">1a</a> — hidden object + brick breaker + UI kit" · "hub of <a class="dv-oid" href="#1b">1b</a> with the rounded shapes from <a class="dv-oid" href="#1a">1a</a>" · "more logo directions"</p>
+</section>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script="" data-props="{&quot;$preview&quot;:{&quot;width&quot;:&quot;1400px&quot;,&quot;height&quot;:&quot;1100px&quot;},&quot;skyMood&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;dusk&quot;,&quot;deep night&quot;],&quot;default&quot;:&quot;dusk&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Ambience&quot;},&quot;ambientMotion&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Ambience&quot;},&quot;glowIntensity&quot;:{&quot;editor&quot;:&quot;range&quot;,&quot;min&quot;:0.3,&quot;max&quot;:1.6,&quot;step&quot;:0.1,&quot;default&quot;:1,&quot;unit&quot;:&quot;×&quot;,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Ambience&quot;}}">
+class Component extends DCLogic {
+  componentDidMount() { this.applyVars(); }
+  componentDidUpdate() { this.applyVars(); }
+  applyVars() {
+    const deep = (this.props.skyMood ?? 'dusk') === 'deep night';
+    const b = document.body.style;
+    b.setProperty('--skyA', deep ? '#191636' : '#2D2A52');
+    b.setProperty('--skyB', deep ? '#121024' : '#1E1B3A');
+    b.setProperty('--glow', String(this.props.glowIntensity ?? 1));
+  }
+  ff(seed, n) {
+    if ((this.props.ambientMotion ?? true) === false) return null;
+    const dots = Array.from({ length: n }, (_, i) => React.createElement('div', {
+      key: i,
+      style: {
+        position: 'absolute',
+        left: ((seed * 17 + i * 37) % 90 + 5) + '%',
+        top: ((seed * 11 + i * 53) % 82 + 6) + '%',
+        width: i % 3 ? 3 : 5, height: i % 3 ? 3 : 5,
+        borderRadius: '50%', background: '#FFD98E',
+        boxShadow: '0 0 8px 2px rgba(255,217,142,.75)',
+        animation: 'ffly ' + (6 + (i % 5) * 2) + 's ease-in-out ' + (-i * 1.7) + 's infinite'
+      }
+    }));
+    return React.createElement('div', { style: { position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none', zIndex: 2 } }, dots);
+  }
+  renderVals() {
+    return { ffA: this.ff(1, 9), ffB: this.ff(2, 7), ffC: this.ff(3, 8), ffD: this.ff(4, 14), ffE: this.ff(5, 6), ffF: this.ff(6, 5) };
+  }
+}
+</script>
+
+
+</body></html>"
+  </script>
+</body>
+</html>
+
