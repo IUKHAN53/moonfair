@@ -54,9 +54,25 @@ func _ready() -> void:
 		fail.call("miss tap registered a find")
 		return
 
-	# find everything
+	# only ACTIVE_TARGETS items are asked for at once
+	if game.active.size() != 3:
+		fail.call("expected 3 active targets, got %d" % game.active.size())
+		return
+	# tapping a non-active item must NOT count
+	var inactive: Dictionary = {}
 	for it in items:
-		game._on_tap(Vector2(it["x"], it["y"]))
+		if not game.active.has(it["id"]):
+			inactive = it
+			break
+	game._on_tap(Vector2(inactive["x"], inactive["y"]))
+	if game.found.size() != 0:
+		fail.call("non-active item registered a find")
+		return
+
+	# find everything by always tapping the first active target
+	while game.found.size() < items.size():
+		var target: Dictionary = game._item_by_id(game.active[0])
+		game._on_tap(Vector2(target["x"], target["y"]))
 		await get_tree().process_frame
 	if game.found.size() != items.size():
 		fail.call("only %d/%d found" % [game.found.size(), items.size()])

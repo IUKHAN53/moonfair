@@ -113,20 +113,23 @@ static func circle_button(icon_kind: String, d: int, primary: bool, icon_r: floa
 	var b := Button.new()
 	b.focus_mode = Control.FOCUS_NONE
 	b.custom_minimum_size = Vector2(d, d)
+	# radius just under half-size: at >= half, StyleBoxFlat's corner geometry
+	# degenerates into a circle with a visible vertical seam artifact
+	var rad := d / 2 - 2
 	var icon_col: Color
 	if primary:
-		var n := sb(T.BTN_AMBER, T.RADIUS_PILL, Color.TRANSPARENT, 0,
+		var n := sb(T.BTN_AMBER, rad, Color.TRANSPARENT, 0,
 				Color(1.0, 0.63, 0.24, 0.45), 8)
 		b.add_theme_stylebox_override("normal", n)
 		b.add_theme_stylebox_override("hover", n)
-		b.add_theme_stylebox_override("pressed", sb(T.BTN_AMBER_PRESSED, T.RADIUS_PILL))
+		b.add_theme_stylebox_override("pressed", sb(T.BTN_AMBER_PRESSED, rad))
 		icon_col = T.TEXT_ON_AMBER
 	else:
-		var n := sb(Color(0.0784, 0.0706, 0.1412, 0.75), T.RADIUS_PILL, Color(1, 1, 1, 0.14), 1)
+		var n := sb(Color(0.0784, 0.0706, 0.1412, 0.75), rad, Color(1, 1, 1, 0.14), 1)
 		b.add_theme_stylebox_override("normal", n)
 		b.add_theme_stylebox_override("hover", n)
 		b.add_theme_stylebox_override("pressed",
-				sb(Color(0.0784, 0.0706, 0.1412, 0.95), T.RADIUS_PILL, Color(1, 1, 1, 0.2), 1))
+				sb(Color(0.0784, 0.0706, 0.1412, 0.95), rad, Color(1, 1, 1, 0.2), 1))
 		icon_col = Color(T.TEXT_BODY, 0.85)
 	center_in(b, Icon.new(icon_kind, icon_col, icon_r), nudge)
 	pressify(b)
@@ -336,6 +339,9 @@ class Icon extends Control:
 			"back":
 				draw_line(c2 + Vector2(r * 0.4, -r * 0.8), c2 + Vector2(-r * 0.5, 0), col, r * 0.32, true)
 				draw_line(c2 + Vector2(-r * 0.5, 0), c2 + Vector2(r * 0.4, r * 0.8), col, r * 0.32, true)
+			"close":
+				draw_line(c2 + Vector2(-r * 0.7, -r * 0.7), c2 + Vector2(r * 0.7, r * 0.7), col, r * 0.3, true)
+				draw_line(c2 + Vector2(-r * 0.7, r * 0.7), c2 + Vector2(r * 0.7, -r * 0.7), col, r * 0.3, true)
 			_:
 				UI.draw_glyph(self, kind, col, c2, r)
 

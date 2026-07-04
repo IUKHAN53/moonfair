@@ -45,7 +45,7 @@ func _build() -> void:
 	sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	chips.add_child(sp)
 	var gear := UI.circle_button("gear", 36, false, 7)
-	gear.pressed.connect(func(): UI.toast(self, "Settings live in the pause menu for now"))
+	gear.pressed.connect(func(): Overlays.show_settings())
 	chips.add_child(gear)
 
 	# Moonfair lockup
@@ -79,6 +79,14 @@ func _build() -> void:
 	if SaveData.gift_available():
 		_gift_banner = _build_gift_banner()
 		add_child(_gift_banner)
+
+	# build stamp — so device screenshots are always attributable to a build
+	var ver := UI.label("v%s" % ProjectSettings.get_setting("application/config/version", "?"),
+			8, Color(T.TEXT_BODY, 0.3))
+	ver.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
+	ver.offset_left = 6
+	ver.offset_top = -12
+	add_child(ver)
 
 func _refresh_chips() -> void:
 	_star_chip_label.text = UI.fmt(SaveData.stars)

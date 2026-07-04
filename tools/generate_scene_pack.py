@@ -1,18 +1,19 @@
 #!/usr/bin/env python3
 """Generate a Moonfair hidden-object scene pack with Gemini image generation.
 
-Approach (baked items):
-  1. Generate a realistic base scene (no findable items in it).
+Approach (layered patches):
+  1. Generate a clean stylized base scene (bg.png — no findable items in it).
   2. For each item, WE pick the exact position, crop a patch around it, and ask
-     Gemini's image editor to paint the item into that patch — small, blended,
-     partially hidden. The edited patch is pasted back with a feathered mask.
+     Gemini's image editor to paint the item into that patch. The edited patch
+     is saved as its own PNG with a feathered alpha edge (patches/<id>.png).
   3. Gemini vision verifies the item is actually visible in the patch
      (retry once with a stronger prompt; drop the item if it still fails).
-  4. pack.json gets each item's exact image-pixel coordinates.
+  4. pack.json gets each item's patch path + exact image-pixel coordinates.
 
-The game shows the finished image full-bleed, players get NAMES only, and taps
-are hit-tested against the stored coordinates. Same scene serves all 12 stages
-of a chapter (each stage asks for a random subset of the pool).
+The game layers unfound items' patches over the base at runtime, so a found
+item VISIBLY DISAPPEARS from the scene. Players get NAMES only (3 active
+targets at a time), and taps are hit-tested against the stored coordinates.
+Same scene serves all 12 stages of a chapter.
 
 Usage:
   # .env in project root with GEMINI_API_KEY=... (or env var)
@@ -53,37 +54,51 @@ API = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateC
 ROOT = Path(__file__).resolve().parent.parent
 SCENES = ROOT / "data" / "scenes"
 
-STYLE = ("highly detailed realistic digital painting, natural colors, "
-         "soft natural light, rich texture, no text, no watermark")
+STYLE = ("bright cheerful stylized 3D cartoon game art, clean bold shapes, "
+         "vivid saturated colors, soft sunny daylight, crisp and readable, "
+         "like a modern casual mobile city-builder game, no text, no watermark")
 
 BG_PROMPT = (
-    "A {theme}, {style}. Tall portrait composition, busy and layered with "
-    "natural detail everywhere — foreground, midground and background all "
-    "interesting. No people. No single object given prominence; this is a "
-    "background for a hidden-object game, so it needs many natural nooks, "
-    "shadows and textures where small things could hide."
+    "A {theme}, {style}. Tall portrait composition. A cozy, inviting game "
+    "scene with many DISTINCT props, surfaces, shelves and corners — "
+    "readable and evenly lit, never murky or cluttered. No people. No single "
+    "object given prominence; this is a background for a hidden-object game, "
+    "so it needs plenty of clean surfaces and nooks where small objects "
+    "could sit naturally."
 )
 
 HIDE_PROMPT = (
     "Edit this image patch for a hidden-object game: add exactly ONE small "
-    "{item}, roughly centered. It must blend naturally into the scene — "
-    "correct scale, matching light and painting style, partially tucked "
-    "behind/among existing elements so it is subtle but clearly recognizable "
-    "when you look directly at it. Do NOT change anything else in the patch. "
-    "Keep the exact same art style and colors."
+    "stylized {item}, roughly centered, placed naturally on or against the "
+    "existing surfaces. It must be clearly recognizable at a glance and "
+    "match the bright cartoon art style and lighting exactly. Do NOT change "
+    "anything else in the patch."
 )
 
 HIDE_PROMPT_STRONG = (
-    "Edit this image patch: paint exactly ONE small but clearly visible "
-    "{item} in the CENTER of the patch. Match the painting style and "
-    "lighting. It should look like it belongs in the scene, but a player "
-    "must be able to recognize it. Change nothing else."
+    "Edit this image patch: add exactly ONE small cute cartoon {item} in "
+    "the CENTER of the patch, clearly visible and instantly recognizable. "
+    "Match the bright stylized art style and lighting. Change nothing else."
 )
 
 VERIFY_PROMPT = (
     "Look at this image patch from a hidden-object game. Is there a "
     "recognizable {item} at or near the center? A player must be able to "
     "spot it when looking carefully. Answer with exactly one word: YES or NO."
+)
+
+DETECT_PROMPT = (
+    "You are labeling a scene for a hidden-object game (like the classic "
+    "seek-and-find genre). Identify up to {n} DISTINCT, clearly visible, "
+    "concrete objects in this image that a player could be asked to find by "
+    "name. Prefer small-to-medium props: tools, containers, plants, fruit, "
+    "animals, decorations, architectural details (a barrel, a rope bridge, a "
+    "lantern, a log...). Do NOT include broad regions (sky, water, ground, "
+    "grass, generic trees or rocks), people, or two entries for the same "
+    "object. Each name must be unique. Return ONLY a JSON array where each "
+    'element is {{"label": "<short object name>", "box_2d": [ymin, xmin, '
+    "ymax, xmax]}} with coordinates normalized to 0-1000, boxes tight around "
+    "the object."
 )
 
 
@@ -149,6 +164,66 @@ def gen_image(prompt: str, aspect: str = "1:1",
             raw = base64.b64decode(inline["data"])
             return Image.open(io.BytesIO(raw)).convert("RGB")
     raise RuntimeError(f"no image in response: {json.dumps(data)[:300]}")
+
+
+def slug(name: str) -> str:
+    import re
+    return re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_")
+
+
+def detect_native_items(scene: Image.Image, taken_ids: set, max_n: int = 25) -> list:
+    """Ask Gemini vision to label objects ALREADY in the base scene.
+
+    These become findable items for free — the Whiteout way, where most
+    findables (barrel, ladder, bench...) are part of the scene art itself.
+    """
+    data = _call(VISION_MODEL,
+                 [{"text": DETECT_PROMPT.format(n=max_n)}, _img_part(scene)])
+    try:
+        text = data["candidates"][0]["content"]["parts"][0]["text"].strip()
+    except (KeyError, IndexError):
+        return []
+    if text.startswith("```"):
+        text = text.strip("`")
+        if text.startswith("json"):
+            text = text[4:]
+    try:
+        arr = json.loads(text)
+    except json.JSONDecodeError:
+        print("  detect: could not parse response, skipping natives")
+        return []
+    w, h = scene.size
+    out: list = []
+    for e in arr:
+        try:
+            y0, x0, y1, x1 = [int(v) for v in e["box_2d"]]
+            name = str(e["label"]).strip().lower()
+        except (KeyError, TypeError, ValueError):
+            continue
+        bx, by = int(x0 / 1000 * w), int(y0 / 1000 * h)
+        bw, bh = int((x1 - x0) / 1000 * w), int((y1 - y0) / 1000 * h)
+        if bw <= 0 or bh <= 0 or not name:
+            continue
+        area = (bw * bh) / (w * h)
+        if area < 0.001 or area > 0.12:   # too tiny to tap / too huge to be fair
+            continue
+        cx, cy = bx + bw // 2, by + bh // 2
+        # keep clear of the HUD strip, the tray, and the cover-crop side margins
+        if not (0.06 * w < cx < 0.94 * w and 0.09 * h < cy < 0.78 * h):
+            continue
+        sid = slug(name)
+        if sid in taken_ids:
+            continue
+        # skip if the center sits inside an already-accepted native box
+        if any(n["bx"] <= cx <= n["bx"] + n["bw"] and n["by"] <= cy <= n["by"] + n["bh"]
+               for n in out):
+            continue
+        taken_ids.add(sid)
+        out.append({"id": sid, "name": name, "kind": "native",
+                    "bx": bx, "by": by, "bw": bw, "bh": bh, "x": cx, "y": cy})
+        if len(out) >= max_n:
+            break
+    return out
 
 
 def verify_item(patch: Image.Image, item: str) -> bool:
@@ -227,6 +302,8 @@ def main() -> None:
     ap.add_argument("--bg-only", action="store_true")
     ap.add_argument("--force", action="store_true")
     ap.add_argument("--no-verify", action="store_true")
+    ap.add_argument("--no-detect", action="store_true",
+                    help="skip detecting native scene objects as findables")
     ap.add_argument("--patch", type=int, default=280)
     ap.add_argument("--seed", type=int, default=None)
     args = ap.parse_args()
@@ -241,10 +318,6 @@ def main() -> None:
             if pack_path.exists() else
             {"id": args.pack_id, "name": args.pack_id.replace("_", " ").title(),
              "background": "", "items": []})
-
-    def slug(name: str) -> str:
-        import re
-        return re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_")
 
     if args.items:
         names = [n.strip() for n in args.items.split(",") if n.strip()]
@@ -266,12 +339,20 @@ def main() -> None:
         scene = gen_image(BG_PROMPT.format(theme=theme, style=STYLE), aspect="9:16")
         scene.save(bg_path, "PNG")
         print(f"bg: saved {bg_path} ({scene.size[0]}x{scene.size[1]})")
-        # base changed: all previously baked coordinates are stale
+        # base changed: previously generated patches and detected natives are stale
+        pack["items"] = [it for it in pack["items"] if it.get("kind") != "native"]
         for it in pack["items"]:
-            it.pop("x", None)
-            it.pop("y", None)
-            it.pop("r", None)
+            for k in ("x", "y", "r", "patch", "px", "py", "ps"):
+                it.pop(k, None)
     pack["background"] = f"res://data/scenes/{args.pack_id}/bg.png"
+
+    # ---- harvest objects already painted into the scene (the Whiteout way) ----
+    if not args.no_detect and not any(it.get("kind") == "native" for it in pack["items"]):
+        print("detecting native scene objects...")
+        taken = {it["id"] for it in pack["items"]}
+        natives = detect_native_items(scene, taken)
+        pack["items"].extend(natives)
+        print(f"  +{len(natives)} natives: " + ", ".join(n["name"] for n in natives))
 
     if args.bg_only:
         pack_path.write_text(json.dumps(pack, indent="\t", ensure_ascii=False) + "\n",
@@ -279,7 +360,9 @@ def main() -> None:
         print("bg-only: done")
         return
 
-    # ---- hide items into the scene ----
+    # ---- generate item patches (layered over the clean base at runtime) ----
+    patches_dir = pack_dir / "patches"
+    patches_dir.mkdir(exist_ok=True)
     w, h = scene.size
     patch_sz = args.patch
     todo = [it for it in pack["items"] if args.force or "x" not in it]
@@ -309,7 +392,14 @@ def main() -> None:
             if edited.size != (patch_sz, patch_sz):
                 edited = edited.resize((patch_sz, patch_sz), Image.LANCZOS)
             if args.no_verify or verify_item(edited, it["name"]):
-                scene.paste(edited, (x0, y0), mask)
+                # feathered alpha lets the patch melt into the base at runtime
+                rgba = edited.convert("RGBA")
+                rgba.putalpha(mask)
+                rgba.save(patches_dir / f"{it['id']}.png", "PNG")
+                it["patch"] = f"res://data/scenes/{args.pack_id}/patches/{it['id']}.png"
+                it["px"] = x0
+                it["py"] = y0
+                it["ps"] = patch_sz
                 it["x"] = x0 + patch_sz // 2
                 it["y"] = y0 + patch_sz // 2
                 it["r"] = int(patch_sz * 0.32)
@@ -320,31 +410,14 @@ def main() -> None:
             dropped.append(it["name"])
             it.pop("x", None)
 
-    scene.save(bg_path, "PNG")
-
-    # ---- final verification against the finished composite ----
-    # catches items a later overlapping patch painted over
-    if not args.no_verify:
-        print("final verify pass on the composed scene...")
-        for it in pack["items"]:
-            if "x" not in it:
-                continue
-            r = patch_sz // 2
-            box = (max(0, it["x"] - r), max(0, it["y"] - r),
-                   min(w, it["x"] + r), min(h, it["y"] + r))
-            if not verify_item(scene.crop(box), it["name"]):
-                print(f"  {it['name']}: MISSING from final image, dropping")
-                dropped.append(it["name"])
-                it.pop("x", None)
-
     pack_path.write_text(json.dumps(pack, indent="\t", ensure_ascii=False) + "\n",
                          encoding="utf-8")
     ok = sum(1 for it in pack["items"] if "x" in it)
-    print(f"done: {ok}/{len(pack['items'])} items baked into {bg_path}")
+    print(f"done: {ok}/{len(pack['items'])} item patches in {patches_dir}")
     if dropped:
         print(f"dropped (excluded from play): {', '.join(dropped)}")
     print("Re-run the same command to retry dropped items at fresh positions.")
-    print("Open the project in Godot once so it re-imports bg.png.")
+    print("Open the project in Godot once so it imports the new PNGs.")
 
 
 if __name__ == "__main__":

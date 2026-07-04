@@ -90,6 +90,36 @@ func show_pause(on_resume: Callable, on_restart: Callable, on_exit: Callable) ->
 	leave.pressed.connect(_do_c_unpause)
 	v.add_child(leave)
 
+func show_confirm(title: String, sub: String, stay_txt: String, leave_txt: String,
+		on_leave: Callable) -> void:
+	## Non-pausing confirm — the game keeps running behind it (anti-cheat:
+	## a stage timer never stops while the scene is on screen).
+	var v := _shell(Color(T.LAVENDER, 0.3))
+	v.add_child(_center(UI.label(title, 20, T.TEXT_WARM, true)))
+	if sub != "":
+		v.add_child(_center(UI.label(sub, 12, T.TEXT_DIM)))
+	v.add_child(UI.spacer(10))
+	_cb_a = Callable()
+	_cb_b = on_leave
+	var stay := UI.pill_button(stay_txt, true, 44)
+	stay.pressed.connect(_do_a)
+	v.add_child(stay)
+	var leave := UI.pill_button(leave_txt, false, 38, 12)
+	leave.pressed.connect(_do_b)
+	v.add_child(leave)
+
+func show_settings() -> void:
+	var v := _shell(Color(1, 1, 1, 0.12))
+	v.add_child(_center(UI.label("Settings", 22, T.TEXT_WARM, true)))
+	v.add_child(UI.spacer(6))
+	v.add_child(_toggle_row("Music", SaveData.music_on, func(on): SaveData.music_on = on; SaveData.save()))
+	v.add_child(_toggle_row("Sounds", SaveData.sfx_on, func(on): SaveData.sfx_on = on; SaveData.save()))
+	v.add_child(UI.spacer(10))
+	_cb_a = Callable()
+	var done := UI.pill_button("Done", true, 44)
+	done.pressed.connect(_do_a)
+	v.add_child(done)
+
 func show_reward(title: String, star_amt: int, spark_amt: int, on_claim: Callable) -> void:
 	var v := _shell(Color(T.GOLD, 0.4))
 	v.add_child(_center(UI.Icon.new("lantern", T.GOLD, 16)))

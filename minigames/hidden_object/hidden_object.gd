@@ -5,13 +5,15 @@ extends Control
 ## Content comes from a *scene pack* (data/scenes/<chapter>/pack.json).
 ## Two modes:
 ##
-## BAKED (production): items are painted INTO the background by the AI pipeline
-## (tools/generate_scene_pack.py) at known image-pixel coordinates. Each stage
-## asks for a random subset of the pool — same scene, different shopping list,
-## exactly like the classic HOG structure. The tray shows names only.
+## PATCHES (production): the AI pipeline (tools/generate_scene_pack.py) makes a
+## clean base scene plus one feather-edged patch PNG per item at known
+## image-pixel coordinates. Unfound items' patches are layered over the base at
+## runtime, so a found item visibly disappears. Each stage asks for a random
+## subset of the pool; only 3 targets are active at a time (names only) —
+## tapping a non-active item counts as a miss.
 ##
-## GLYPH (dev fallback): packs without baked coordinates scatter drawn glyphs at
-## random screen positions so a pack is playable before its art exists.
+## GLYPH (dev fallback): packs without generated patches scatter drawn glyphs
+## at random screen positions so a pack is playable before its art exists.
 
 const TAP_SLOP := 14.0
 const ITEM_R := 15.0
@@ -19,11 +21,16 @@ const ITEM_R := 15.0
 const FIELD := Rect2(26, 100, 338, 540)
 const MIN_ITEM_DIST := 52.0
 
+const ACTIVE_TARGETS := 3
+const DISTRACTORS := 4  # planted items visible this stage but never asked for
+
 var pack: Dictionary = {}
 var chapter_id := "grove"
 var stage := 1
-var baked := false          # items painted into the background at fixed image coords
+var baked := false          # items live at fixed image coords with patch textures
 var bg_tex: Texture2D = null
+var active: Array = []      # item ids currently asked for (max ACTIVE_TARGETS)
+var distracts: Array = []   # planted this stage, tappable-but-wrong (Whiteout-style)
 var items: Array = []       # this round's picks: {id,name,shape,color,sprite,x,y,r}
 var found: Dictionary = {}
 var score := 0
@@ -31,11 +38,11 @@ var time_limit := 90.0
 var time_left := 90.0
 var running := false
 
+var _patches: Dictionary = {}  # item id -> Texture2D
 var _scene_view: SceneView
 var _timer_lbl: Label
 var _timer_style: StyleBoxFlat
-var _count_found_lbl: Label
-var _count_total_lbl: Label
+var _count_lbl: Label
 var _tray_chips: HFlowContainer
 var _tray_left_lbl: Label
 
@@ -57,17 +64,29 @@ func _load_pack() -> void:
 	var bg_path: String = pack.get("background", "")
 	if bg_path != "" and ResourceLoader.exists(bg_path):
 		bg_tex = load(bg_path)
-	# baked mode: background art exists and items carry image-pixel coordinates
-	var pool_all: Array = pack["items"]
-	baked = bg_tex != null and not pool_all.is_empty() and pool_all[0].has("x")
+	# baked mode: background art exists and items carry generated patches
+	# (planted props) and/or detected native scene objects
+	baked = false
+	if bg_tex != null:
+		for it in pack["items"]:
+			var patch_path: String = it.get("patch", "")
+			if patch_path != "" and ResourceLoader.exists(patch_path):
+				_patches[it["id"]] = load(patch_path)
+				baked = true
+			elif it.get("kind", "") == "native" and it.has("bx"):
+				baked = true
 
 func _setup_stage() -> void:
 	# difficulty curve: stage 1 = 6 items, +2 per stage, capped by pool size;
 	# once the pool caps, later stages squeeze the timer instead
 	var pool: Array = []
 	for it in pack["items"]:
-		if baked and not it.has("x"):
-			continue  # item the pipeline failed to bake/verify — never ask for it
+		if baked:
+			var is_native: bool = it.get("kind", "") == "native"
+			if is_native and not it.has("bx"):
+				continue
+			if not is_native and not _patches.has(it["id"]):
+				continue  # pipeline failed to generate/verify — never ask for it
 		pool.append(it)
 	pool.shuffle()
 	var count: int = min(6 + 2 * (stage - 1), pool.size())
@@ -76,10 +95,27 @@ func _setup_stage() -> void:
 	time_limit = clampf(30.0 + 4.0 * count - 6.0 * over_cap, 35.0, 110.0)
 	time_left = time_limit
 	items = []
+	distracts = []
 	if baked:
 		# fixed positions inside the art; the stage varies WHICH items you seek
 		for i in range(count):
-			items.append(pool[i].duplicate())
+			var it: Dictionary = pool[i].duplicate()
+			if not it.has("bw"):
+				# planted props: tight hit radius — the item graphic is well
+				# inside its edit patch, and a generous radius makes taps on
+				# nearby decor "collect" listed items
+				it["r"] = int(float(it.get("ps", 280)) * 0.22)
+			items.append(it)
+		# spawn a few planted items that are NOT on this stage's list — present
+		# in the scene, always a miss (natives are already always visible)
+		for i in range(count, pool.size()):
+			if distracts.size() >= DISTRACTORS:
+				break
+			if pool[i].get("kind", "") == "native":
+				continue
+			var d: Dictionary = pool[i].duplicate()
+			d["r"] = int(float(d.get("ps", 280)) * 0.22)
+			distracts.append(d)
 	else:
 		var placed: Array[Vector2] = []
 		for i in range(count):
@@ -90,6 +126,10 @@ func _setup_stage() -> void:
 			it["y"] = pos.y
 			it["r"] = ITEM_R
 			items.append(it)
+	# only a few targets are "asked for" at once; the rest queue up
+	active = []
+	for i in range(mini(ACTIVE_TARGETS, items.size())):
+		active.append(items[i]["id"])
 
 func _pick_position(placed: Array[Vector2]) -> Vector2:
 	for attempt in range(200):
@@ -151,10 +191,11 @@ func _build() -> void:
 	hud.add_theme_constant_override("separation", 10)
 	add_child(hud)
 
-	# pause button
-	var pause := UI.circle_button("pause", 44, false, 7)
-	pause.pressed.connect(_on_pause)
-	hud.add_child(pause)
+	# quit button — no pausing mid-stage (pausing would freeze the timer while
+	# the scene stays visible, letting players scan it for free)
+	var quit_btn := UI.circle_button("close", 44, false, 7)
+	quit_btn.pressed.connect(_on_quit)
+	hud.add_child(quit_btn)
 
 	# timer pill (center)
 	var mid := CenterContainer.new()
@@ -175,16 +216,11 @@ func _build() -> void:
 
 	# found counter
 	var count := PanelContainer.new()
-	var csb := UI.sb(Color(0.0784, 0.0706, 0.1412, 0.78), T.RADIUS_PILL, Color(1, 1, 1, 0.14), 1)
+	var csb := UI.sb(Color(0.0784, 0.0706, 0.1412, 0.78), 21, Color(1, 1, 1, 0.14), 1)
 	UI.sb_pad(csb, 14, 8)
 	count.add_theme_stylebox_override("panel", csb)
-	var ch := HBoxContainer.new()
-	ch.add_theme_constant_override("separation", 0)
-	_count_found_lbl = UI.label("0", 16, T.TEAL, true)
-	_count_total_lbl = UI.label("/%d" % items.size(), 13, Color(T.TEXT_BODY, 0.5), true)
-	ch.add_child(_count_found_lbl)
-	ch.add_child(_count_total_lbl)
-	count.add_child(ch)
+	_count_lbl = UI.label("0/%d" % items.size(), 15, T.TEAL, true)
+	count.add_child(_count_lbl)
 	hud.add_child(count)
 
 	# ---- target tray ----
@@ -195,7 +231,7 @@ func _build() -> void:
 	tray.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
 	tray.offset_left = 12
 	tray.offset_right = -12
-	tray.offset_top = -140
+	tray.offset_top = -104
 	tray.offset_bottom = -14
 	add_child(tray)
 	var tv := VBoxContainer.new()
@@ -223,23 +259,51 @@ func _on_tap(pos: Vector2) -> void:
 	# baked items live in image pixels; convert the tap into that space
 	var hit_pos := _scene_view.screen_to_img(pos) if baked else pos
 	var slop := TAP_SLOP / _scene_view.img_scale() if baked else TAP_SLOP
+	# nearest-object-wins: find the closest unfound object, active or not.
+	# Only collect when the closest one is an active target — a tap aimed at a
+	# queued item that merely grazes an active hotspot must NOT collect.
+	# Ties (tap inside two overlapping bounds) go to the smaller object.
 	var best_id := ""
-	var best_d := INF
-	for it in items:
+	var best_m := INF
+	var best_area := INF
+	for it in items + distracts:
 		if found.has(it["id"]):
 			continue
-		var d := hit_pos.distance_to(Vector2(it["x"], it["y"]))
-		if d <= float(it["r"]) + slop and d < best_d:
-			best_d = d
+		var m := _obj_margin(hit_pos, it)
+		var area := _obj_area(it)
+		if m < best_m or (m == best_m and area < best_area):
+			best_m = m
+			best_area = area
 			best_id = it["id"]
 	if best_id == "":
+		return
+	if best_m > slop or not active.has(best_id):
 		_scene_view.miss_ripple(pos)
 		return
 	_find_item(best_id)
 
+func _obj_margin(hit: Vector2, it: Dictionary) -> float:
+	## Distance from the tap to the item's bounds (0 = inside).
+	if it.has("bw"):
+		var rx := clampf(hit.x, float(it["bx"]), float(it["bx"]) + float(it["bw"]))
+		var ry := clampf(hit.y, float(it["by"]), float(it["by"]) + float(it["bh"]))
+		return hit.distance_to(Vector2(rx, ry))
+	return maxf(0.0, hit.distance_to(Vector2(it["x"], it["y"])) - float(it["r"]))
+
+func _obj_area(it: Dictionary) -> float:
+	if it.has("bw"):
+		return float(it["bw"]) * float(it["bh"])
+	return PI * float(it["r"]) * float(it["r"])
+
 func _find_item(id: String) -> void:
 	var it: Dictionary = _item_by_id(id)
 	found[id] = true
+	active.erase(id)
+	# next queued target takes the freed slot
+	for cand in items:
+		if not found.has(cand["id"]) and not active.has(cand["id"]):
+			active.append(cand["id"])
+			break
 	var pts := 150
 	score += pts
 	var pos := Vector2(it["x"], it["y"])
@@ -247,7 +311,7 @@ func _find_item(id: String) -> void:
 		pos = _scene_view.img_to_screen(pos)
 	_scene_view.sparkle(pos)
 	_found_toast(it["name"], pts, pos)
-	_count_found_lbl.text = str(found.size())
+	_count_lbl.text = "%d/%d" % [found.size(), items.size()]
 	_refresh_tray()
 	_scene_view.queue_redraw()
 	if found.size() == items.size():
@@ -283,8 +347,10 @@ func _on_lose() -> void:
 			"So close — %d trinket%s left" % [left, "" if left == 1 else "s"],
 			Game.restart_current, Game.to_chapter_select)
 
-func _on_pause() -> void:
-	Overlays.show_pause(Callable(), Game.restart_current, Game.to_chapter_select)
+func _on_quit() -> void:
+	# timer keeps running behind the confirm — leaving is free, stalling isn't
+	Overlays.show_confirm("Leave the stage?", "The timer keeps running!",
+			"Keep playing", "Leave", Game.to_chapter_select)
 
 # ---------- HUD updates ----------
 
@@ -298,27 +364,20 @@ func _update_timer() -> void:
 		_timer_lbl.add_theme_color_override("font_color", T.CORAL)
 
 func _refresh_tray() -> void:
-	# names only — the player must FIND the thing, not match a picture
+	# names only, 3 active targets at a time — the Whiteout way
 	for c in _tray_chips.get_children():
 		c.queue_free()
-	var unfound: Array = []
-	for it in items:
-		if not found.has(it["id"]):
-			unfound.append(it)
-	_tray_left_lbl.text = "%d left" % unfound.size()
-	var show_count: int = min(9, unfound.size())
-	for i in range(show_count):
-		_tray_chips.add_child(_name_chip(unfound[i]["name"]))
-	var extra: int = unfound.size() - show_count
-	if extra > 0:
-		_tray_chips.add_child(_name_chip("+%d more" % extra, true))
+	var unfound := items.size() - found.size()
+	_tray_left_lbl.text = "%d left" % unfound
+	for id in active:
+		_tray_chips.add_child(_name_chip(_item_by_id(id)["name"]))
 
-func _name_chip(txt: String, dim := false) -> PanelContainer:
+func _name_chip(txt: String) -> PanelContainer:
 	var p := PanelContainer.new()
-	var style := UI.sb(T.SURFACE_PANEL, T.RADIUS_PILL, Color(1, 1, 1, 0.1), 1)
-	UI.sb_pad(style, 10, 4)
+	var style := UI.sb(T.SURFACE_PANEL, T.RADIUS_PILL, Color(T.LAVENDER, 0.4), 1)
+	UI.sb_pad(style, 14, 7)
 	p.add_theme_stylebox_override("panel", style)
-	p.add_child(UI.label(txt, 11, Color(T.TEXT_BODY, 0.45) if dim else T.TEXT_BODY))
+	p.add_child(UI.label(txt, 13, T.TEXT_BODY, true))
 	return p
 
 func _found_toast(item_name: String, pts: int, pos: Vector2) -> void:
@@ -386,15 +445,35 @@ class SceneView extends Control:
 		if game.bg_tex == null:
 			_draw_ambience(w, h)
 		if game.baked:
-			# items are painted into the background; optionally reveal hotspots
-			# for tuning: godot ... -- --show-hotspots
+			# layer unfound targets' + distractors' patches over the base —
+			# found items vanish, distractors stay all stage
+			var s := img_scale()
+			var off := _img_offset()
+			for it in game.items + game.distracts:
+				if game.found.has(it["id"]):
+					continue
+				var tex: Texture2D = game._patches.get(it["id"])
+				if tex:
+					var dst := Rect2(
+							Vector2(it["px"], it["py"]) * s - off,
+							Vector2(it["ps"], it["ps"]) * s)
+					draw_texture_rect(tex, dst, false)
+			# hotspot tuning overlay: godot ... -- --show-hotspots
 			if OS.get_cmdline_user_args().has("--show-hotspots"):
-				for it in game.items:
+				for it in game.items + game.distracts:
 					if game.found.has(it["id"]):
 						continue
-					var sp := img_to_screen(Vector2(it["x"], it["y"]))
-					draw_arc(sp, float(it["r"]) * img_scale(), 0, TAU, 24,
-							Color(T.CORAL, 0.8), 2.0, true)
+					var ring := Color(1, 1, 1, 0.4)  # distractor
+					if game.active.has(it["id"]):
+						ring = Color(T.TEAL, 0.9)
+					elif game._item_by_id(it["id"]) != {}:
+						ring = Color(T.CORAL, 0.6)
+					if it.has("bw"):
+						draw_rect(Rect2(img_to_screen(Vector2(it["bx"], it["by"])),
+								Vector2(it["bw"], it["bh"]) * s), ring, false, 2.0)
+					else:
+						draw_arc(img_to_screen(Vector2(it["x"], it["y"])),
+								float(it["r"]) * s, 0, TAU, 24, ring, 2.0, true)
 			return
 		# glyph fallback: draw placeholder items
 		for it in game.items:
