@@ -1,0 +1,120 @@
+{
+	"id": "kitchen",
+	"name": "Fair Kitchen",
+	"background": "res://data/scenes/kitchen/bg.png",
+	"bg_gradient": [
+		"#4A3226",
+		"#33221B",
+		"#1F1512"
+	],
+	"items": [
+		{
+			"id": "sausage",
+			"name": "sausage",
+			"shape": "stick",
+			"color": "#FF9484"
+		},
+		{
+			"id": "tomato",
+			"name": "tomato",
+			"shape": "ball",
+			"color": "#C24E3C"
+		},
+		{
+			"id": "corn_cob",
+			"name": "corn cob",
+			"shape": "stick",
+			"color": "#FFD98E"
+		},
+		{
+			"id": "cheese",
+			"name": "cheese wedge",
+			"shape": "tri",
+			"color": "#FFC97A"
+		},
+		{
+			"id": "spatula",
+			"name": "spatula",
+			"shape": "stick",
+			"color": "#E8DFC8"
+		},
+		{
+			"id": "copper_bell",
+			"name": "copper bell",
+			"shape": "lantern",
+			"color": "#FFB454"
+		},
+		{
+			"id": "milk_jug",
+			"name": "milk jug",
+			"shape": "lantern",
+			"color": "#E8DFC8"
+		},
+		{
+			"id": "red_apple",
+			"name": "red apple",
+			"shape": "ball",
+			"color": "#FF7E6B"
+		},
+		{
+			"id": "honey_pie",
+			"name": "honey pie",
+			"shape": "ball",
+			"color": "#FFD98E"
+		},
+		{
+			"id": "pumpkin",
+			"name": "pumpkin",
+			"shape": "ball",
+			"color": "#FFB454"
+		},
+		{
+			"id": "kettle",
+			"name": "kettle",
+			"shape": "watch",
+			"color": "#B4A7FF"
+		},
+		{
+			"id": "jam_jar",
+			"name": "jam jar",
+			"shape": "lantern",
+			"color": "#FF9484"
+		},
+		{
+			"id": "gold_coin",
+			"name": "gold coin",
+			"shape": "ring",
+			"color": "#FFD98E"
+		},
+		{
+			"id": "flour_mouse",
+			"name": "flour mouse",
+			"shape": "ball",
+			"color": "#C7BBFF"
+		},
+		{
+			"id": "maple_leaf",
+			"name": "maple leaf",
+			"shape": "tri",
+			"color": "#FF9484"
+		},
+		{
+			"id": "scissors",
+			"name": "scissors",
+			"shape": "key",
+			"color": "#8FF5E3"
+		},
+		{
+			"id": "ladle",
+			"name": "ladle",
+			"shape": "key",
+			"color": "#FFB454"
+		},
+		{
+			"id": "sugar_star",
+			"name": "sugar star",
+			"shape": "star",
+			"color": "#FFF3D6"
+		}
+	]
+}

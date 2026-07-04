@@ -1,0 +1,120 @@
+{
+	"id": "dock",
+	"name": "Lantern Dock",
+	"background": "res://data/scenes/dock/bg.png",
+	"bg_gradient": [
+		"#1E3A52",
+		"#16293D",
+		"#0F1B29"
+	],
+	"items": [
+		{
+			"id": "anchor",
+			"name": "anchor",
+			"shape": "key",
+			"color": "#8FF5E3"
+		},
+		{
+			"id": "lifebuoy",
+			"name": "lifebuoy",
+			"shape": "ring",
+			"color": "#FF7E6B"
+		},
+		{
+			"id": "starfish",
+			"name": "starfish",
+			"shape": "star",
+			"color": "#FFD98E"
+		},
+		{
+			"id": "seashell",
+			"name": "seashell",
+			"shape": "tri",
+			"color": "#E8DFC8"
+		},
+		{
+			"id": "lobster",
+			"name": "lobster",
+			"shape": "key",
+			"color": "#FF7E6B"
+		},
+		{
+			"id": "crab",
+			"name": "crab",
+			"shape": "ball",
+			"color": "#FF9484"
+		},
+		{
+			"id": "telescope",
+			"name": "telescope",
+			"shape": "stick",
+			"color": "#B4A7FF"
+		},
+		{
+			"id": "mini_lighthouse",
+			"name": "lighthouse",
+			"shape": "lantern",
+			"color": "#FF7E6B"
+		},
+		{
+			"id": "oar",
+			"name": "oar",
+			"shape": "stick",
+			"color": "#E8DFC8"
+		},
+		{
+			"id": "fishing_rod",
+			"name": "fishing rod",
+			"shape": "stick",
+			"color": "#5EEAD4"
+		},
+		{
+			"id": "sea_horse",
+			"name": "sea horse",
+			"shape": "key",
+			"color": "#5EEAD4"
+		},
+		{
+			"id": "volleyball",
+			"name": "volleyball",
+			"shape": "ball",
+			"color": "#FFF3D6"
+		},
+		{
+			"id": "harpoon",
+			"name": "harpoon",
+			"shape": "stick",
+			"color": "#FFD98E"
+		},
+		{
+			"id": "compass",
+			"name": "compass",
+			"shape": "watch",
+			"color": "#FFD98E"
+		},
+		{
+			"id": "rubber_duck",
+			"name": "rubber duck",
+			"shape": "ball",
+			"color": "#FFD98E"
+		},
+		{
+			"id": "octopus",
+			"name": "octopus",
+			"shape": "ball",
+			"color": "#C7BBFF"
+		},
+		{
+			"id": "sailboat",
+			"name": "sailboat",
+			"shape": "tri",
+			"color": "#5EEAD4"
+		},
+		{
+			"id": "moon_whale",
+			"name": "moon whale",
+			"shape": "gem",
+			"color": "#8FF5E3"
+		}
+	]
+}

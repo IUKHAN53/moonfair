@@ -1,5 +1,9 @@
+# Secrets — never commit
+.env
+
 # Godot
 .godot/
+build/
 
 # Regeneratable design artifacts (keep moonfair.dc.html + ref/)
 design/decoded.html

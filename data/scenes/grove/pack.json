@@ -1,0 +1,120 @@
+{
+	"id": "grove",
+	"name": "Hidden Grove",
+	"background": "res://data/scenes/grove/bg.png",
+	"bg_gradient": [
+		"#2A5248",
+		"#1D3A33",
+		"#122720"
+	],
+	"items": [
+		{
+			"id": "spectacles",
+			"name": "spectacles",
+			"shape": "ring",
+			"color": "#FFD98E"
+		},
+		{
+			"id": "moon_gem",
+			"name": "moon gem",
+			"shape": "gem",
+			"color": "#8FF5E3"
+		},
+		{
+			"id": "tiny_lantern",
+			"name": "tiny lantern",
+			"shape": "lantern",
+			"color": "#FF7E6B"
+		},
+		{
+			"id": "silk_ribbon",
+			"name": "silk ribbon",
+			"shape": "stick",
+			"color": "#E8DFC8"
+		},
+		{
+			"id": "pocket_watch",
+			"name": "pocket watch",
+			"shape": "watch",
+			"color": "#FFD98E"
+		},
+		{
+			"id": "toffee_apple",
+			"name": "toffee apple",
+			"shape": "ball",
+			"color": "#C24E3C"
+		},
+		{
+			"id": "star_charm",
+			"name": "star charm",
+			"shape": "star",
+			"color": "#FFD98E"
+		},
+		{
+			"id": "dream_feather",
+			"name": "dream feather",
+			"shape": "stick",
+			"color": "#B4A7FF"
+		},
+		{
+			"id": "firefly_jar",
+			"name": "firefly jar",
+			"shape": "lantern",
+			"color": "#5EEAD4"
+		},
+		{
+			"id": "carousel_key",
+			"name": "carousel key",
+			"shape": "key",
+			"color": "#FFB454"
+		},
+		{
+			"id": "paper_fan",
+			"name": "paper fan",
+			"shape": "tri",
+			"color": "#FF9484"
+		},
+		{
+			"id": "sugar_bell",
+			"name": "sugar bell",
+			"shape": "ball",
+			"color": "#C7BBFF"
+		},
+		{
+			"id": "wish_marble",
+			"name": "wish marble",
+			"shape": "ball",
+			"color": "#5EEAD4"
+		},
+		{
+			"id": "moth_charm",
+			"name": "moth charm",
+			"shape": "tri",
+			"color": "#B4A7FF"
+		},
+		{
+			"id": "fair_ticket",
+			"name": "fair ticket",
+			"shape": "stick",
+			"color": "#FF9484"
+		},
+		{
+			"id": "brass_bell",
+			"name": "brass bell",
+			"shape": "lantern",
+			"color": "#FFD98E"
+		},
+		{
+			"id": "pinwheel",
+			"name": "pinwheel",
+			"shape": "star",
+			"color": "#FF7E6B"
+		},
+		{
+			"id": "moon_ring",
+			"name": "moon ring",
+			"shape": "ring",
+			"color": "#8FF5E3"
+		}
+	]
+}

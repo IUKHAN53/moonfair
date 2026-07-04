@@ -17,7 +17,7 @@ func is_open() -> bool:
 # ---------- public ----------
 
 func show_win(title: String, score: int, rating: int, star_reward: int,
-		on_next: Callable, on_replay: Callable) -> void:
+		on_next: Callable, on_replay: Callable, next_label := "Next round") -> void:
 	var v := _shell(Color(T.GOLD, 0.35))
 	v.add_child(_center(UI.label(title, 26, T.GOLD, true)))
 	var stars_row := HBoxContainer.new()
@@ -37,7 +37,7 @@ func show_win(title: String, score: int, rating: int, star_reward: int,
 	v.add_child(UI.spacer(10))
 	_cb_a = on_next
 	_cb_b = on_replay
-	var next_btn := UI.pill_button("Next round", true, 44)
+	var next_btn := UI.pill_button(next_label, true, 44)
 	next_btn.pressed.connect(_do_a)
 	v.add_child(next_btn)
 	var replay_btn := UI.pill_button("Replay", false, 38, 12)

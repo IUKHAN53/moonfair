@@ -66,7 +66,71 @@ static func spacer(h: int) -> Control:
 	c.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	return c
 
+# ---------- layout helpers ----------
+
+static func center_in(parent: Control, child: Control, nudge := Vector2.ZERO) -> void:
+	## True centering with explicit offsets (anchor presets compute from the
+	## pre-layout size of 0 and leave children hanging out of their parents).
+	var sz := child.custom_minimum_size
+	child.anchor_left = 0.5
+	child.anchor_top = 0.5
+	child.anchor_right = 0.5
+	child.anchor_bottom = 0.5
+	child.offset_left = -sz.x / 2.0 + nudge.x
+	child.offset_top = -sz.y / 2.0 + nudge.y
+	child.offset_right = sz.x / 2.0 + nudge.x
+	child.offset_bottom = sz.y / 2.0 + nudge.y
+	parent.add_child(child)
+
+# ---------- soft radial glow (no banding) ----------
+
+static var _glow_cache: Dictionary = {}
+
+static func glow_tex(col: Color) -> GradientTexture2D:
+	var key := col.to_html()
+	if not _glow_cache.has(key):
+		var g := Gradient.new()
+		g.colors = PackedColorArray([col, Color(col, 0.0)])
+		g.offsets = PackedFloat32Array([0.0, 1.0])
+		var t := GradientTexture2D.new()
+		t.gradient = g
+		t.fill = GradientTexture2D.FILL_RADIAL
+		t.fill_from = Vector2(0.5, 0.5)
+		t.fill_to = Vector2(0.5, 0.0)
+		t.width = 128
+		t.height = 128
+		_glow_cache[key] = t
+	return _glow_cache[key]
+
+static func draw_glow(ci: CanvasItem, c: Vector2, r: float, col: Color) -> void:
+	ci.draw_texture_rect(glow_tex(col), Rect2(c - Vector2(r, r), Vector2(r, r) * 2.0), false)
+
 # ---------- buttons ----------
+
+static func circle_button(icon_kind: String, d: int, primary: bool, icon_r: float,
+		nudge := Vector2.ZERO) -> Button:
+	## Round icon button with the icon actually centered.
+	var b := Button.new()
+	b.focus_mode = Control.FOCUS_NONE
+	b.custom_minimum_size = Vector2(d, d)
+	var icon_col: Color
+	if primary:
+		var n := sb(T.BTN_AMBER, T.RADIUS_PILL, Color.TRANSPARENT, 0,
+				Color(1.0, 0.63, 0.24, 0.45), 8)
+		b.add_theme_stylebox_override("normal", n)
+		b.add_theme_stylebox_override("hover", n)
+		b.add_theme_stylebox_override("pressed", sb(T.BTN_AMBER_PRESSED, T.RADIUS_PILL))
+		icon_col = T.TEXT_ON_AMBER
+	else:
+		var n := sb(Color(0.0784, 0.0706, 0.1412, 0.75), T.RADIUS_PILL, Color(1, 1, 1, 0.14), 1)
+		b.add_theme_stylebox_override("normal", n)
+		b.add_theme_stylebox_override("hover", n)
+		b.add_theme_stylebox_override("pressed",
+				sb(Color(0.0784, 0.0706, 0.1412, 0.95), T.RADIUS_PILL, Color(1, 1, 1, 0.2), 1))
+		icon_col = Color(T.TEXT_BODY, 0.85)
+	center_in(b, Icon.new(icon_kind, icon_col, icon_r), nudge)
+	pressify(b)
+	return b
 
 static func pill_button(txt: String, primary := true, h := 44, font_size := 14) -> Button:
 	var b := Button.new()
@@ -174,11 +238,28 @@ static func draw_glyph(ci: CanvasItem, shape: String, col: Color, c: Vector2, s:
 				c + Vector2(0, -s), c + Vector2(s, 0), c + Vector2(0, s), c + Vector2(-s, 0)])
 			ci.draw_colored_polygon(pts, col)
 		"lantern":
-			var r := StyleBoxFlat.new()
-			r.bg_color = col
-			r.set_corner_radius_all(int(s * 0.5))
-			r.draw(ci.get_canvas_item(), Rect2(c - Vector2(s * 0.7, s), Vector2(s * 1.4, s * 2)))
-			ci.draw_circle(c - Vector2(0, s * 1.15), s * 0.18, Color(col, 0.8))
+			# paper lantern: warm glow, capped ribbed body, tassel
+			var dark := col.darkened(0.35)
+			draw_glow(ci, c, s * 2.4, Color(col, 0.30))
+			# hanger + top cap
+			ci.draw_line(c + Vector2(0, -s * 1.55), c + Vector2(0, -s * 1.15), dark, maxf(1.5, s * 0.12))
+			var cap := StyleBoxFlat.new()
+			cap.bg_color = dark
+			cap.set_corner_radius_all(maxi(1, int(s * 0.12)))
+			cap.draw(ci.get_canvas_item(), Rect2(c + Vector2(-s * 0.38, -s * 1.22), Vector2(s * 0.76, s * 0.26)))
+			# body (squashed circle) with inner light
+			ci.draw_set_transform(c, 0, Vector2(0.88, 1.0))
+			ci.draw_circle(Vector2.ZERO, s, col)
+			ci.draw_set_transform(Vector2.ZERO, 0, Vector2.ONE)
+			ci.draw_circle(c + Vector2(0, -s * 0.12), s * 0.4, Color(1.0, 0.98, 0.88, 0.55))
+			# vertical ribs
+			for f in [0.32, 0.62]:
+				ci.draw_set_transform(c, 0, Vector2(0.88 * f, 1.0))
+				ci.draw_arc(Vector2.ZERO, s * 0.99, 0, TAU, 24, Color(dark, 0.45), maxf(1.0, s * 0.07), true)
+				ci.draw_set_transform(Vector2.ZERO, 0, Vector2.ONE)
+			# bottom cap + tassel
+			cap.draw(ci.get_canvas_item(), Rect2(c + Vector2(-s * 0.3, s * 0.92), Vector2(s * 0.6, s * 0.22)))
+			ci.draw_line(c + Vector2(0, s * 1.14), c + Vector2(0, s * 1.5), Color(dark, 0.9), maxf(1.2, s * 0.1))
 		"ball":
 			ci.draw_circle(c, s, col)
 			ci.draw_circle(c - Vector2(s * 0.3, s * 0.35), s * 0.25, Color(1, 1, 1, 0.35))
@@ -220,7 +301,10 @@ class Icon extends Control:
 		kind = k
 		col = c
 		r = radius
-		custom_minimum_size = Vector2(r * 2 + 2, r * 2 + 2)
+		if k == "lantern":  # hanger-to-tassel is taller than wide
+			custom_minimum_size = Vector2(r * 2.4, r * 3.2)
+		else:
+			custom_minimum_size = Vector2(r * 2 + 2, r * 2 + 2)
 		mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 	func _draw() -> void:
@@ -249,6 +333,9 @@ class Icon extends Control:
 				box2.set_corner_radius_all(int(r * 0.3))
 				box2.draw(get_canvas_item(), Rect2(c2 + Vector2(-r, -r * 0.2), Vector2(r * 2, r * 1.4)))
 				draw_arc(c2 + Vector2(0, -r * 0.25), r * 0.55, PI, TAU, 16, col, r * 0.25, true)
+			"back":
+				draw_line(c2 + Vector2(r * 0.4, -r * 0.8), c2 + Vector2(-r * 0.5, 0), col, r * 0.32, true)
+				draw_line(c2 + Vector2(-r * 0.5, 0), c2 + Vector2(r * 0.4, r * 0.8), col, r * 0.32, true)
 			_:
 				UI.draw_glyph(self, kind, col, c2, r)
 

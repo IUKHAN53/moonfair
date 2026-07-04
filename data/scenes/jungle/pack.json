@@ -1,0 +1,133 @@
+{
+	"id": "jungle",
+	"name": "Jungle",
+	"background": "res://data/scenes/jungle/bg.png",
+	"items": [
+		{
+			"id": "parrot",
+			"name": "parrot",
+			"x": 453,
+			"y": 328,
+			"r": 89
+		},
+		{
+			"id": "butterfly",
+			"name": "butterfly",
+			"x": 526,
+			"y": 840,
+			"r": 89
+		},
+		{
+			"id": "mushroom",
+			"name": "mushroom",
+			"x": 171,
+			"y": 248,
+			"r": 89
+		},
+		{
+			"id": "tree_frog",
+			"name": "tree frog",
+			"x": 218,
+			"y": 548,
+			"r": 89
+		},
+		{
+			"id": "snail",
+			"name": "snail",
+			"x": 185,
+			"y": 764,
+			"r": 89
+		},
+		{
+			"id": "orchid",
+			"name": "orchid",
+			"x": 586,
+			"y": 544,
+			"r": 89
+		},
+		{
+			"id": "banana",
+			"name": "banana",
+			"x": 321,
+			"y": 999,
+			"r": 89
+		},
+		{
+			"id": "bird_nest",
+			"name": "bird nest",
+			"x": 408,
+			"y": 657,
+			"r": 89
+		},
+		{
+			"id": "chameleon",
+			"name": "chameleon",
+			"x": 628,
+			"y": 193,
+			"r": 89
+		},
+		{
+			"id": "dragonfly",
+			"name": "dragonfly",
+			"x": 597,
+			"y": 211,
+			"r": 89
+		},
+		{
+			"id": "coconut",
+			"name": "coconut",
+			"x": 140,
+			"y": 338,
+			"r": 89
+		},
+		{
+			"id": "owl",
+			"name": "owl",
+			"x": 562,
+			"y": 572,
+			"r": 89
+		},
+		{
+			"id": "ladybug",
+			"name": "ladybug",
+			"x": 305,
+			"y": 485,
+			"r": 89
+		},
+		{
+			"id": "turtle",
+			"name": "turtle",
+			"x": 309,
+			"y": 185,
+			"r": 89
+		},
+		{
+			"id": "mango",
+			"name": "mango",
+			"x": 283,
+			"y": 975,
+			"r": 89
+		},
+		{
+			"id": "beetle",
+			"name": "beetle",
+			"x": 625,
+			"y": 989,
+			"r": 89
+		},
+		{
+			"id": "hummingbird",
+			"name": "hummingbird",
+			"x": 620,
+			"y": 218,
+			"r": 89
+		},
+		{
+			"id": "lizard",
+			"name": "lizard",
+			"x": 140,
+			"y": 1018,
+			"r": 89
+		}
+	]
+}

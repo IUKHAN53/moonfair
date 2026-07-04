@@ -8,8 +8,8 @@ var _gift_banner: Control
 
 const GAMES := [
 	{"id": "hidden_object", "title": "Hidden Grove", "sub": "Hidden object", "art": "grove", "playable": true},
-	{"id": "lantern_break", "title": "Lantern Break", "sub": "Brick breaker", "art": "lanterns", "playable": false},
-	{"id": "star_threads", "title": "Star Threads", "sub": "Connect puzzle", "art": "sky", "playable": false},
+	{"id": "lantern_break", "title": "Lantern Break", "sub": "Brick breaker · Coming soon", "art": "lanterns", "playable": false, "locked": true},
+	{"id": "star_threads", "title": "Star Threads", "sub": "Connect puzzle · Coming soon", "art": "sky", "playable": false, "locked": true},
 	{"id": "carousel", "title": "Clockwork Carousel", "sub": "Opens soon", "art": "lock", "playable": false, "locked": true},
 ]
 
@@ -44,15 +44,7 @@ func _build() -> void:
 	var sp := Control.new()
 	sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	chips.add_child(sp)
-	var gear := Button.new()
-	gear.focus_mode = Control.FOCUS_NONE
-	gear.custom_minimum_size = Vector2(36, 36)
-	gear.add_theme_stylebox_override("normal", UI.sb(Color(0.0784, 0.0706, 0.1412, 0.72), T.RADIUS_PILL, Color(1, 1, 1, 0.12), 1))
-	gear.add_theme_stylebox_override("hover", UI.sb(Color(0.0784, 0.0706, 0.1412, 0.72), T.RADIUS_PILL, Color(1, 1, 1, 0.12), 1))
-	gear.add_theme_stylebox_override("pressed", UI.sb(Color(0.0784, 0.0706, 0.1412, 0.9), T.RADIUS_PILL, Color(1, 1, 1, 0.2), 1))
-	var gear_icon := UI.Icon.new("gear", Color(T.TEXT_BODY, 0.8), 8)
-	gear_icon.set_anchors_preset(Control.PRESET_CENTER)
-	gear.add_child(gear_icon)
+	var gear := UI.circle_button("gear", 36, false, 7)
 	gear.pressed.connect(func(): UI.toast(self, "Settings live in the pause menu for now"))
 	chips.add_child(gear)
 
@@ -121,8 +113,15 @@ func _card(g: Dictionary) -> PanelContainer:
 	v.add_child(UI.label(g["title"], T.SIZE_TITLE_CARD, title_col, true))
 	var sub_txt: String = g["sub"]
 	if not locked:
+		if g["id"] == "hidden_object":
+			var total_cleared := 0
+			for ch in Game.chapters():
+				total_cleared += SaveData.stages_cleared(ch)
+			if total_cleared > 0:
+				sub_txt += " · %d/%d" % [total_cleared, Game.chapters().size() * Game.STAGES_PER_CHAPTER]
 		var b := int(SaveData.best.get(g["id"], 0))
-		sub_txt += " · Best %s" % UI.fmt(b) if b > 0 else (" · New!" if not g["playable"] else "")
+		if b > 0:
+			sub_txt += " · Best %s" % UI.fmt(b)
 	var sub_col := T.TEXT_DIM if not locked else T.LAVENDER
 	v.add_child(UI.label(sub_txt, 12, sub_col))
 	if not locked:
@@ -130,24 +129,13 @@ func _card(g: Dictionary) -> PanelContainer:
 	h.add_child(v)
 
 	if not locked:
-		var play := Button.new()
-		play.focus_mode = Control.FOCUS_NONE
-		play.custom_minimum_size = Vector2(54, 54)
+		var play := UI.circle_button("play", 54, true, 9, Vector2(2, 0))
 		play.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		var pn := UI.sb(T.BTN_AMBER, T.RADIUS_PILL, Color.TRANSPARENT, 0, Color(1.0, 0.63, 0.24, 0.45), 8)
-		play.add_theme_stylebox_override("normal", pn)
-		play.add_theme_stylebox_override("hover", pn)
-		play.add_theme_stylebox_override("pressed", UI.sb(T.BTN_AMBER_PRESSED, T.RADIUS_PILL))
-		var icon := UI.Icon.new("play", T.TEXT_ON_AMBER, 9)
-		icon.set_anchors_preset(Control.PRESET_CENTER)
-		icon.position.x += 2
-		play.add_child(icon)
-		UI.pressify(play)
 		play.pressed.connect(_launch.bind(g))
 		h.add_child(play)
-		p.gui_input.connect(func(e: InputEvent):
-			if e is InputEventScreenTouch and e.pressed:
-				_launch(g))
+	p.gui_input.connect(func(e: InputEvent):
+		if e is InputEventScreenTouch and e.pressed:
+			_launch(g))
 	return p
 
 func _launch(g: Dictionary) -> void:
@@ -192,67 +180,99 @@ func _on_gift() -> void:
 # ---------- drawn placeholder art ----------
 
 class MoonIcon extends Control:
+	## Full moon with soft glow and faint craters (no overlay-circle crescent —
+	## it reads as a dark blob against the panorama glow).
 	func _init() -> void:
 		custom_minimum_size = Vector2(38, 38)
 		mouse_filter = Control.MOUSE_FILTER_IGNORE
 	func _draw() -> void:
 		var c := size / 2.0
-		draw_circle(c, 17, Color(T.GOLD, 0.25))
+		UI.draw_glow(self, c, 30, Color(T.GOLD, 0.4))
 		draw_circle(c, 14, T.GOLD)
-		draw_circle(c + Vector2(6, -5), 12, Color("#221E48"))
+		var crater := T.GOLD.darkened(0.13)
+		draw_circle(c + Vector2(-4, -3), 3.2, crater)
+		draw_circle(c + Vector2(5, 2), 2.4, crater)
+		draw_circle(c + Vector2(-1, 6), 1.8, crater)
 
 class HeaderArt extends Control:
-	## Placeholder fairground panorama: glow, hills, tents, swaying lanterns, fireflies.
+	## Placeholder fairground panorama: glow, hills, striped tents, swaying
+	## lanterns, fireflies, fading into the night bg at the bottom.
 	var t := 0.0
+	var _fade: GradientTexture2D
 	func _init() -> void:
 		mouse_filter = Control.MOUSE_FILTER_IGNORE
 		clip_contents = true
+		var g := Gradient.new()
+		g.colors = PackedColorArray([Color(T.BG_NIGHT, 0.0), T.BG_NIGHT])
+		g.offsets = PackedFloat32Array([0.0, 1.0])
+		_fade = GradientTexture2D.new()
+		_fade.gradient = g
+		_fade.fill_from = Vector2(0, 0)
+		_fade.fill_to = Vector2(0, 1)
+		_fade.height = 128
 	func _process(delta: float) -> void:
 		t += delta
 		queue_redraw()
 	func _draw() -> void:
 		var w := size.x
-		# moon glow
-		for i in range(5):
-			var a := 0.06 * (5 - i) * (0.85 + 0.15 * sin(t * 0.8))
-			draw_circle(Vector2(w / 2.0, 60), 40.0 + i * 26.0, Color(T.GOLD, a))
+		var h := size.y
+		# soft moon glow behind the lockup
+		var pulse := 0.85 + 0.15 * sin(t * 0.8)
+		UI.draw_glow(self, Vector2(w / 2.0, 70), 150 * pulse, Color(T.GOLD, 0.22))
 		# hills
 		draw_set_transform(Vector2(90, 250), 0, Vector2(1, 0.5))
 		draw_circle(Vector2.ZERO, 130, Color("#232048"))
 		draw_set_transform(Vector2(w - 90, 260), 0, Vector2(1, 0.5))
 		draw_circle(Vector2.ZERO, 150, Color("#1D1A3E"))
 		draw_set_transform(Vector2.ZERO, 0, Vector2.ONE)
-		# tents
-		var sway := sin(t * 0.9) * 2.0
-		draw_colored_polygon(PackedVector2Array([
-			Vector2(84 + sway, 102), Vector2(112, 146), Vector2(56, 146)]), T.CORAL)
-		draw_colored_polygon(PackedVector2Array([
-			Vector2(88 + sway, 102), Vector2(100, 146), Vector2(76, 146)]), Color("#E86753"))
-		draw_colored_polygon(PackedVector2Array([
-			Vector2(w - 88, 108), Vector2(w - 64, 146), Vector2(w - 112, 146)]), T.LAVENDER)
-		draw_colored_polygon(PackedVector2Array([
-			Vector2(w - 86, 108), Vector2(w - 76, 146), Vector2(w - 98, 146)]), Color("#9887E8"))
+		# tents, pushed to the edges so the lockup breathes
+		_tent(Vector2(58, 190), 74, 52, T.CORAL, Color("#E86753"))
+		_tent(Vector2(w - 60, 194), 64, 44, T.LAVENDER, Color("#9887E8"))
 		# hanging lanterns
-		_lantern(Vector2(37, 34), 34, T.GOLD, T.AMBER, 4.5, 0.0)
-		_lantern(Vector2(119, 52), 52, Color("#FF9484"), T.CORAL, 5.5, 1.4)
-		_lantern(Vector2(w - 104, 44), 44, Color("#C7BBFF"), Color("#9887E8"), 5.0, 2.6)
-		_lantern(Vector2(w - 35, 30), 30, T.GOLD, T.AMBER, 4.0, 0.8)
+		_lantern(Vector2(37, 30), 30, T.AMBER, 4.5, 0.0)
+		_lantern(Vector2(119, 48), 48, T.CORAL, 5.5, 1.4)
+		_lantern(Vector2(w - 104, 40), 40, Color("#C7BBFF"), 5.0, 2.6)
+		_lantern(Vector2(w - 35, 26), 26, T.AMBER, 4.0, 0.8)
 		# fireflies
 		for i in range(6):
 			var fx := fmod(w * 0.15 * i + t * (6.0 + i * 1.5), w)
 			var fy := 120.0 + 40.0 * sin(t * 0.6 + i * 1.7)
 			var fa := 0.3 + 0.25 * sin(t * 2.0 + i)
 			draw_circle(Vector2(fx, fy), 1.6, Color(T.GOLD, fa))
-	func _lantern(anchor: Vector2, string_len: float, top: Color, glow: Color, period: float, phase: float) -> void:
+		# blend into the night background
+		draw_texture_rect(_fade, Rect2(0, h - 80, w, 80), false)
+	func _tent(base: Vector2, tw: float, th: float, main: Color, dark: Color) -> void:
+		# ground shadow
+		draw_set_transform(base + Vector2(0, 3), 0, Vector2(1, 0.28))
+		draw_circle(Vector2.ZERO, tw * 0.62, Color(0, 0, 0, 0.22))
+		draw_set_transform(Vector2.ZERO, 0, Vector2.ONE)
+		var apex := base + Vector2(0, -th)
+		var half := tw / 2.0
+		# canopy with slightly kicked-out feet
+		draw_colored_polygon(PackedVector2Array([
+			apex, base + Vector2(half, 0), base + Vector2(half * 0.86, 2),
+			base + Vector2(-half * 0.86, 2), base + Vector2(-half, 0)]), main)
+		# stripes
+		draw_colored_polygon(PackedVector2Array([
+			apex, base + Vector2(half * 0.32, 0), base + Vector2(-half * 0.32, 0)]), dark)
+		draw_colored_polygon(PackedVector2Array([
+			apex, base + Vector2(half, 0), base + Vector2(half * 0.68, 0)]), dark)
+		draw_colored_polygon(PackedVector2Array([
+			apex, base + Vector2(-half, 0), base + Vector2(-half * 0.68, 0)]), dark)
+		# door
+		draw_colored_polygon(PackedVector2Array([
+			base + Vector2(-half * 0.14, 0), base + Vector2(half * 0.14, 0),
+			base + Vector2(0, -th * 0.28)]), Color(0.08, 0.06, 0.14, 0.6))
+		# pole + pennant
+		draw_line(apex, apex + Vector2(0, -9), Color(dark, 0.9), 2)
+		var flap := sin(t * 3.0 + base.x) * 2.0
+		draw_colored_polygon(PackedVector2Array([
+			apex + Vector2(0, -9), apex + Vector2(12 + flap, -6.5), apex + Vector2(0, -4)]), T.GOLD)
+	func _lantern(anchor: Vector2, string_len: float, col: Color, period: float, phase: float) -> void:
 		var ang := sin(t * TAU / period + phase) * 0.09
 		draw_set_transform(anchor, ang, Vector2.ONE)
 		draw_line(Vector2.ZERO, Vector2(0, string_len), Color(T.GOLD, 0.25), 2)
-		var flicker := 0.45 + 0.12 * sin(t * 7.0 + phase * 3.0)
-		draw_circle(Vector2(0, string_len + 11), 15, Color(glow, flicker * 0.35))
-		var body := StyleBoxFlat.new()
-		body.bg_color = top
-		body.set_corner_radius_all(8)
-		body.draw(get_canvas_item(), Rect2(Vector2(-8, string_len), Vector2(16, 22)))
+		UI.draw_glyph(self, "lantern", col, Vector2(0, string_len + 12), 9)
 		draw_set_transform(Vector2.ZERO, 0, Vector2.ONE)
 
 class CardsBox extends VBoxContainer:
@@ -289,15 +309,12 @@ class MiniArt extends Control:
 			"lanterns":
 				bg.bg_color = Color("#3B2F5C")
 				bg.draw(get_canvas_item(), Rect2(Vector2.ZERO, size))
-				var f1 := 0.5 + 0.15 * sin(t * 5.0)
-				draw_circle(Vector2(24, 24), 12, Color(T.AMBER, f1 * 0.5))
-				UI.draw_glyph(self, "lantern", T.AMBER, Vector2(24, 24), 9)
-				draw_circle(Vector2(54, 32), 10, Color(T.CORAL, 0.35))
-				UI.draw_glyph(self, "lantern", T.CORAL, Vector2(54, 32), 8)
+				UI.draw_glyph(self, "lantern", T.AMBER, Vector2(26, 30), 10)
+				UI.draw_glyph(self, "lantern", T.CORAL, Vector2(56, 38), 8)
 				var base := StyleBoxFlat.new()
 				base.bg_color = T.GOLD
 				base.set_corner_radius_all(4)
-				base.draw(get_canvas_item(), Rect2(Vector2(c.x - 20, 62), Vector2(40, 8)))
+				base.draw(get_canvas_item(), Rect2(Vector2(c.x - 20, 64), Vector2(40, 7)))
 			"sky":
 				bg.bg_color = Color("#1F2657")
 				bg.draw(get_canvas_item(), Rect2(Vector2.ZERO, size))
