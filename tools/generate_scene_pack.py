@@ -45,7 +45,7 @@ import time
 from pathlib import Path
 
 import requests
-from PIL import Image, ImageDraw, ImageFilter
+from PIL import Image, ImageChops, ImageDraw, ImageFilter
 
 IMAGE_MODEL = "gemini-2.5-flash-image"
 VISION_MODEL = "gemini-2.5-flash"
@@ -81,10 +81,24 @@ HIDE_PROMPT_STRONG = (
     "Match the bright stylized art style and lighting. Change nothing else."
 )
 
+REMOVE_PROMPT = (
+    "Edit this image patch: completely REMOVE the {item} and seamlessly fill "
+    "the area with whatever is behind/around it (wall, ground, foliage, "
+    "water...). The fill must be smooth and clean — no smudges, no brush "
+    "marks, no blur. Do not add any new object. Change nothing else in the "
+    "patch. Keep the exact same art style, colors and lighting."
+)
+
 VERIFY_PROMPT = (
     "Look at this image patch from a hidden-object game. Is there a "
     "recognizable {item} at or near the center? A player must be able to "
     "spot it when looking carefully. Answer with exactly one word: YES or NO."
+)
+
+LOCATE_PROMPT = (
+    "Find the {item} in this image. Return ONLY JSON, no prose: "
+    '{{"box_2d": [ymin, xmin, ymax, xmax]}} with coordinates normalized to '
+    "0-1000 and the box TIGHT around the {item} only."
 )
 
 DETECT_PROMPT = (
@@ -158,7 +172,11 @@ def gen_image(prompt: str, aspect: str = "1:1",
     if base is None:
         cfg["imageConfig"] = {"aspectRatio": aspect}
     data = _call(IMAGE_MODEL, parts, cfg)
-    for part in data["candidates"][0]["content"]["parts"]:
+    candidates = data.get("candidates") or []
+    if not candidates or "content" not in candidates[0]:
+        reason = candidates[0].get("finishReason", "?") if candidates else "no candidates"
+        raise RuntimeError(f"generation returned no content ({reason})")
+    for part in candidates[0]["content"].get("parts", []):
         inline = part.get("inlineData") or part.get("inline_data")
         if inline:
             raw = base64.b64decode(inline["data"])
@@ -226,6 +244,30 @@ def detect_native_items(scene: Image.Image, taken_ids: set, max_n: int = 25) -> 
     return out
 
 
+def locate_in_patch(patch: Image.Image, item: str):
+    """Tight bounding box of the item inside its patch (px), or None."""
+    data = _call(VISION_MODEL,
+                 [{"text": LOCATE_PROMPT.format(item=item)}, _img_part(patch)])
+    try:
+        text = data["candidates"][0]["content"]["parts"][0]["text"].strip()
+    except (KeyError, IndexError):
+        return None
+    if text.startswith("```"):
+        text = text.strip("`")
+        if text.startswith("json"):
+            text = text[4:]
+    try:
+        y0, x0, y1, x1 = [int(v) for v in json.loads(text)["box_2d"]]
+    except (json.JSONDecodeError, KeyError, TypeError, ValueError):
+        return None
+    ps = patch.size[0]
+    bx, by = int(x0 / 1000 * ps), int(y0 / 1000 * ps)
+    bw, bh = int((x1 - x0) / 1000 * ps), int((y1 - y0) / 1000 * ps)
+    if bw < 12 or bh < 12 or bw > ps * 0.95 or bh > ps * 0.95:
+        return None
+    return (bx, by, bw, bh)
+
+
 def verify_item(patch: Image.Image, item: str) -> bool:
     data = _call(VISION_MODEL,
                  [{"text": VERIFY_PROMPT.format(item=item)}, _img_part(patch)])
@@ -272,24 +314,63 @@ def pick_positions(n: int, w: int, h: int, patch: int, rng: random.Random,
         min_dist *= 0.9
     # even the floor spacing can't fit everything: place what fits, drop the rest
     out = []
+    placed_pts: list = []
     for _ in range(n):
         placed = None
         for _attempt in range(500):
             p = (rng.randint(x_lo, x_hi), rng.randint(y_lo, y_hi))
-            if all(math.dist(p, q) >= floor for q in out + taken):
+            if all(math.dist(p, q) >= floor for q in placed_pts + taken):
                 placed = p
                 break
         out.append(placed)  # None = drop this item
+        if placed is not None:
+            placed_pts.append(placed)
     return out
 
 
+def region_diff(a: Image.Image, b: Image.Image) -> float:
+    """Mean absolute RGB difference (0-255) between two same-size crops."""
+    import itertools
+    a = a.convert("RGB")
+    b = b.convert("RGB")
+    if a.size != b.size or a.size[0] == 0 or a.size[1] == 0:
+        return 255.0
+    pa, pb = a.tobytes(), b.tobytes()
+    return sum(abs(x - y) for x, y in zip(pa, pb)) / len(pa)
+
+
 def feather_mask(size: int, solid: float = 0.55) -> Image.Image:
-    """Radial mask: opaque center, feathered edges — hides paste seams."""
+    """Rounded-square mask: opaque center, feathered edges — hides paste seams
+    while keeping the whole object bounds fully opaque."""
     m = Image.new("L", (size, size), 0)
     d = ImageDraw.Draw(m)
-    d.ellipse([size * (1 - solid) / 2, size * (1 - solid) / 2,
-               size * (1 + solid) / 2, size * (1 + solid) / 2], fill=255)
-    return m.filter(ImageFilter.GaussianBlur(size * (1 - solid) / 3))
+    off = size * (1 - solid) / 2
+    d.rounded_rectangle([off, off, size - off, size - off],
+                        radius=size * 0.1, fill=255)
+    return m.filter(ImageFilter.GaussianBlur(size * (1 - solid) / 3.5))
+
+
+def diff_alpha(orig: Image.Image, edited: Image.Image, bbox=None,
+               threshold: int = 18) -> Image.Image:
+    """Overlay alpha from the actual pixel difference: only where the edit
+    changed the image stays opaque, so the overlay carries exactly the object —
+    no tint squares, no ghost edges. Optional bbox (patch-local x,y,w,h) gates
+    out stray changes far from the object."""
+    diff = ImageChops.difference(orig.convert("RGB"), edited.convert("RGB")).convert("L")
+    mask = diff.point(lambda v: 255 if v > threshold else 0)
+    mask = mask.filter(ImageFilter.MaxFilter(11))
+    if bbox:
+        ps = orig.size[0]
+        gate = Image.new("L", (ps, ps), 0)
+        d = ImageDraw.Draw(gate)
+        pad = 20
+        d.rounded_rectangle([max(0, bbox[0] - pad), max(0, bbox[1] - pad),
+                             min(ps, bbox[0] + bbox[2] + pad),
+                             min(ps, bbox[1] + bbox[3] + pad)],
+                            radius=14, fill=255)
+        gate = gate.filter(ImageFilter.GaussianBlur(4))
+        mask = ImageChops.multiply(mask, gate)
+    return mask.filter(ImageFilter.GaussianBlur(3))
 
 
 # ---------- main ----------
@@ -319,6 +400,12 @@ def main() -> None:
             {"id": args.pack_id, "name": args.pack_id.replace("_", " ").title(),
              "background": "", "items": []})
 
+    def save_pack() -> None:
+        # crash-safe: persist after every phase so a failure never orphans
+        # already-generated overlays
+        pack_path.write_text(json.dumps(pack, indent="\t", ensure_ascii=False) + "\n",
+                             encoding="utf-8")
+
     if args.items:
         names = [n.strip() for n in args.items.split(",") if n.strip()]
         existing = {it["id"] for it in pack["items"]}
@@ -342,8 +429,14 @@ def main() -> None:
         # base changed: previously generated patches and detected natives are stale
         pack["items"] = [it for it in pack["items"] if it.get("kind") != "native"]
         for it in pack["items"]:
-            for k in ("x", "y", "r", "patch", "px", "py", "ps"):
+            for k in ("x", "y", "r", "patch", "px", "py", "ps", "bx", "by", "bw", "bh"):
                 it.pop(k, None)
+        # and their overlay PNGs must not survive to be mistaken for current art
+        stale_dir = pack_dir / "patches"
+        if stale_dir.exists():
+            for f in stale_dir.glob("*.png"):
+                f.unlink()
+        save_pack()
     pack["background"] = f"res://data/scenes/{args.pack_id}/bg.png"
 
     # ---- harvest objects already painted into the scene (the Whiteout way) ----
@@ -353,6 +446,7 @@ def main() -> None:
         natives = detect_native_items(scene, taken)
         pack["items"].extend(natives)
         print(f"  +{len(natives)} natives: " + ", ".join(n["name"] for n in natives))
+        save_pack()
 
     if args.bg_only:
         pack_path.write_text(json.dumps(pack, indent="\t", ensure_ascii=False) + "\n",
@@ -360,10 +454,74 @@ def main() -> None:
         print("bg-only: done")
         return
 
-    # ---- generate item patches (layered over the clean base at runtime) ----
     patches_dir = pack_dir / "patches"
     patches_dir.mkdir(exist_ok=True)
     w, h = scene.size
+
+    # ---- lift native objects into removable layers ----
+    # Whiteout-style: even a pipe on the wall pops off when found. The object
+    # is REMOVED from the base (inpainted) and its original pixels become the
+    # item's overlay layer — identical look, but it can vanish.
+    natives_todo = [it for it in pack["items"]
+                    if it.get("kind") == "native" and "patch" not in it and it.get("bw")]
+    if natives_todo:
+        print(f"lifting {len(natives_todo)} native objects into removable layers")
+        base_dirty = False
+        for it in natives_todo:
+            nb_w, nb_h = int(it["bw"]), int(it["bh"])
+            # only small discrete objects can plausibly "pop off" the scene —
+            # inpainting away a church/tree/waterfall scars the base
+            if max(nb_w, nb_h) > 200 or (nb_w * nb_h) > 0.04 * w * h:
+                print(f"  {it['name']}: too large to lift — stays scenery, not findable")
+                continue
+            ps = int(min(max(max(nb_w, nb_h) * 1.7, 170), 340))
+            ps = min(ps, w, h)
+            x0 = max(0, min(w - ps, int(it["x"]) - ps // 2))
+            y0 = max(0, min(h - ps, int(it["y"]) - ps // 2))
+            orig = scene.crop((x0, y0, x0 + ps, y0 + ps))
+            # object bbox in patch-local coords, for the pixel-diff guard
+            rb = (max(0, int(it["bx"]) - x0), max(0, int(it["by"]) - y0))
+            rbox = (rb[0], rb[1], min(ps, rb[0] + nb_w), min(ps, rb[1] + nb_h))
+            removed = False
+            for round_i in range(2):
+                print(f"  {it['name']}: removing from base" + (" [retry]" if round_i else ""))
+                try:
+                    cleaned = gen_image(REMOVE_PROMPT.format(item=it["name"]), base=orig)
+                except RuntimeError as e:
+                    print(f"  {it['name']}: {e}")
+                    continue
+                if cleaned.size != (ps, ps):
+                    cleaned = cleaned.resize((ps, ps), Image.LANCZOS)
+                # deterministic guard: the object's pixels must actually change —
+                # vision verify alone sometimes waves through a no-op edit
+                d = region_diff(orig.crop(rbox), cleaned.crop(rbox))
+                if d < 8.0:
+                    print(f"  {it['name']}: edit barely changed the region (diff {d:.1f})")
+                    continue
+                if args.no_verify or not verify_item(cleaned, it["name"]):
+                    removed = True
+                    break
+            if not removed:
+                print(f"  {it['name']}: could not remove cleanly — stays scenery, not findable")
+                continue
+            # base gets the cleaned region (solid over the object, feathered out)
+            solid = min(0.88, max(nb_w, nb_h) / ps + 0.2)
+            scene.paste(cleaned, (x0, y0), feather_mask(ps, solid))
+            base_dirty = True
+            # overlay carries ONLY the object pixels: alpha from the removal diff
+            rgba = orig.convert("RGBA")
+            rgba.putalpha(diff_alpha(orig, cleaned, (rbox[0], rbox[1], nb_w, nb_h)))
+            rgba.save(patches_dir / f"{it['id']}.png", "PNG")
+            it["patch"] = f"res://data/scenes/{args.pack_id}/patches/{it['id']}.png"
+            it["px"] = x0
+            it["py"] = y0
+            it["ps"] = ps
+            scene.save(bg_path, "PNG")
+            save_pack()
+        if base_dirty:
+            scene.save(bg_path, "PNG")
+
+    # ---- generate planted item patches (layered over the base at runtime) ----
     patch_sz = args.patch
     todo = [it for it in pack["items"] if args.force or "x" not in it]
     occupied = [(it["x"], it["y"]) for it in pack["items"]
@@ -388,14 +546,14 @@ def main() -> None:
             print(f"  {it['name']}: hiding at ({cx},{cy})"
                   + (" [retry]" if round_i else ""))
             patch = scene.crop(box)
-            edited = gen_image(prompt.format(item=it["name"]), base=patch)
+            try:
+                edited = gen_image(prompt.format(item=it["name"]), base=patch)
+            except RuntimeError as e:
+                print(f"  {it['name']}: {e}")
+                continue
             if edited.size != (patch_sz, patch_sz):
                 edited = edited.resize((patch_sz, patch_sz), Image.LANCZOS)
             if args.no_verify or verify_item(edited, it["name"]):
-                # feathered alpha lets the patch melt into the base at runtime
-                rgba = edited.convert("RGBA")
-                rgba.putalpha(mask)
-                rgba.save(patches_dir / f"{it['id']}.png", "PNG")
                 it["patch"] = f"res://data/scenes/{args.pack_id}/patches/{it['id']}.png"
                 it["px"] = x0
                 it["py"] = y0
@@ -403,12 +561,26 @@ def main() -> None:
                 it["x"] = x0 + patch_sz // 2
                 it["y"] = y0 + patch_sz // 2
                 it["r"] = int(patch_sz * 0.32)
+                # tight hit box, sized to the item itself
+                loc = None if args.no_verify else locate_in_patch(edited, it["name"])
+                if loc:
+                    it["bx"] = x0 + loc[0]
+                    it["by"] = y0 + loc[1]
+                    it["bw"] = loc[2]
+                    it["bh"] = loc[3]
+                    it["x"] = it["bx"] + loc[2] // 2
+                    it["y"] = it["by"] + loc[3] // 2
+                # overlay carries ONLY the added object: alpha from the edit diff
+                rgba = edited.convert("RGBA")
+                rgba.putalpha(diff_alpha(patch, edited, loc))
+                rgba.save(patches_dir / f"{it['id']}.png", "PNG")
                 placed = True
                 break
             print(f"  {it['name']}: verify said NO")
         if not placed:
             dropped.append(it["name"])
             it.pop("x", None)
+        save_pack()
 
     pack_path.write_text(json.dumps(pack, indent="\t", ensure_ascii=False) + "\n",
                          encoding="utf-8")

@@ -108,6 +108,26 @@ func show_confirm(title: String, sub: String, stay_txt: String, leave_txt: Strin
 	leave.pressed.connect(_do_b)
 	v.add_child(leave)
 
+func show_rescue(seconds: int, cost: int, on_pay: Callable, on_giveup: Callable) -> void:
+	## Timeout continue-offer (hardcore chapters): buy time or lose the chapter.
+	var v := _shell(Color(T.GOLD, 0.4))
+	v.add_child(_center(UI.label("Time's up!", 22, T.TEXT_WARM, true)))
+	v.add_child(_center(UI.label("Keep the lanterns burning?", 12, T.TEXT_DIM)))
+	v.add_child(UI.spacer(4))
+	var chip_row := HBoxContainer.new()
+	chip_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	chip_row.add_child(_reward_chip("star", T.GOLD, "-%d" % cost))
+	v.add_child(chip_row)
+	v.add_child(UI.spacer(8))
+	_cb_a = on_pay
+	_cb_b = on_giveup
+	var pay := UI.pill_button("Add %d seconds" % seconds, true, 46, 15)
+	pay.pressed.connect(_do_a)
+	v.add_child(pay)
+	var give := UI.pill_button("Give up", false, 38, 12)
+	give.pressed.connect(_do_b)
+	v.add_child(give)
+
 func show_settings() -> void:
 	var v := _shell(Color(1, 1, 1, 0.12))
 	v.add_child(_center(UI.label("Settings", 22, T.TEXT_WARM, true)))

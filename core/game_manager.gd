@@ -31,10 +31,10 @@ func chapter_number(chapter_id: String) -> int:
 	return chapters().find(chapter_id) + 1
 
 func is_chapter_unlocked(chapter_id: String) -> bool:
-	var idx := chapters().find(chapter_id)
-	if idx <= 0:
-		return idx == 0
-	return SaveData.stages_cleared(chapters()[idx - 1]) >= STAGES_PER_CHAPTER
+	# progression locking disabled for now — all chapters open.
+	# TODO(release): restore sequential unlock:
+	#   idx == 0 or SaveData.stages_cleared(previous) >= STAGES_PER_CHAPTER
+	return chapters().has(chapter_id)
 
 func go_hub() -> void:
 	_change("hub")

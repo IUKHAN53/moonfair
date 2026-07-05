@@ -71,6 +71,8 @@ func _card(chapter_id: String) -> PanelContainer:
 		var sub := "Complete! Replay any time" if done else "Stage %d of %d" % [mini(cleared + 1, Game.STAGES_PER_CHAPTER), Game.STAGES_PER_CHAPTER]
 		v.add_child(UI.label(sub, 12, T.TEXT_DIM))
 		v.add_child(ProgressPips.new(cleared))
+		if bool(pack.get("fail_resets_chapter", false)):
+			v.add_child(UI.label("Hardcore — failing resets the chapter", 10, T.CORAL))
 	else:
 		v.add_child(UI.label("Clear the previous chapter", 12, T.LAVENDER))
 	h.add_child(v)

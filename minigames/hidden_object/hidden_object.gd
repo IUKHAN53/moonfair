@@ -29,7 +29,12 @@ var chapter_id := "grove"
 var stage := 1
 var baked := false          # items live at fixed image coords with patch textures
 var bg_tex: Texture2D = null
-var active: Array = []      # item ids currently asked for (max ACTIVE_TARGETS)
+# hardcore chapters: failing wipes chapter progress; timeout offers a paid rescue
+var hardcore := false
+var rescue_seconds := 30
+var rescue_cost := 50
+var active: Array = []      # item ids currently asked for
+var active_slots := ACTIVE_TARGETS
 var distracts: Array = []   # planted this stage, tappable-but-wrong (Whiteout-style)
 var items: Array = []       # this round's picks: {id,name,shape,color,sprite,x,y,r}
 var found: Dictionary = {}
@@ -61,11 +66,15 @@ func _load_pack() -> void:
 	var parsed = JSON.parse_string(FileAccess.get_file_as_string(path))
 	assert(typeof(parsed) == TYPE_DICTIONARY, "bad pack json: " + path)
 	pack = parsed
+	hardcore = bool(pack.get("fail_resets_chapter", false))
+	var tr: Dictionary = pack.get("time_rescue", {})
+	rescue_seconds = int(tr.get("seconds", 30))
+	rescue_cost = int(tr.get("cost", 50))
 	var bg_path: String = pack.get("background", "")
 	if bg_path != "" and ResourceLoader.exists(bg_path):
 		bg_tex = load(bg_path)
-	# baked mode: background art exists and items carry generated patches
-	# (planted props) and/or detected native scene objects
+	# baked mode: background art exists and items carry overlay layers —
+	# planted props AND lifted native objects alike vanish when found
 	baked = false
 	if bg_tex != null:
 		for it in pack["items"]:
@@ -73,20 +82,15 @@ func _load_pack() -> void:
 			if patch_path != "" and ResourceLoader.exists(patch_path):
 				_patches[it["id"]] = load(patch_path)
 				baked = true
-			elif it.get("kind", "") == "native" and it.has("bx"):
-				baked = true
 
 func _setup_stage() -> void:
 	# difficulty curve: stage 1 = 6 items, +2 per stage, capped by pool size;
 	# once the pool caps, later stages squeeze the timer instead
 	var pool: Array = []
 	for it in pack["items"]:
-		if baked:
-			var is_native: bool = it.get("kind", "") == "native"
-			if is_native and not it.has("bx"):
-				continue
-			if not is_native and not _patches.has(it["id"]):
-				continue  # pipeline failed to generate/verify — never ask for it
+		# no overlay layer = not removable = not findable (stays scenery)
+		if baked and not _patches.has(it["id"]):
+			continue
 		pool.append(it)
 	pool.shuffle()
 	var count: int = min(6 + 2 * (stage - 1), pool.size())
@@ -106,15 +110,14 @@ func _setup_stage() -> void:
 				# nearby decor "collect" listed items
 				it["r"] = int(float(it.get("ps", 280)) * 0.22)
 			items.append(it)
-		# spawn a few planted items that are NOT on this stage's list — present
-		# in the scene, always a miss (natives are already always visible)
+		# spawn a few items that are NOT on this stage's list — present in the
+		# scene this stage, always a miss
 		for i in range(count, pool.size()):
 			if distracts.size() >= DISTRACTORS:
 				break
-			if pool[i].get("kind", "") == "native":
-				continue
 			var d: Dictionary = pool[i].duplicate()
-			d["r"] = int(float(d.get("ps", 280)) * 0.22)
+			if not d.has("bw"):
+				d["r"] = int(float(d.get("ps", 280)) * 0.22)
 			distracts.append(d)
 	else:
 		var placed: Array[Vector2] = []
@@ -127,8 +130,10 @@ func _setup_stage() -> void:
 			it["r"] = ITEM_R
 			items.append(it)
 	# only a few targets are "asked for" at once; the rest queue up
+	# (bigger stages widen the tray to 6, like Whiteout's later maps)
+	active_slots = ACTIVE_TARGETS if items.size() <= 12 else 6
 	active = []
-	for i in range(mini(ACTIVE_TARGETS, items.size())):
+	for i in range(mini(active_slots, items.size())):
 		active.append(items[i]["id"])
 
 func _pick_position(placed: Array[Vector2]) -> Vector2:
@@ -155,7 +160,12 @@ func _process(delta: float) -> void:
 	if time_left <= 0.0:
 		time_left = 0.0
 		running = false
-		_on_lose()
+		if hardcore and SaveData.stars >= rescue_cost:
+			Overlays.show_rescue(rescue_seconds, rescue_cost, _on_rescue_paid, _on_give_up)
+		elif hardcore:
+			_on_give_up()
+		else:
+			_on_lose()
 	_update_timer()
 
 # ---------- build ----------
@@ -309,6 +319,9 @@ func _find_item(id: String) -> void:
 	var pos := Vector2(it["x"], it["y"])
 	if baked:
 		pos = _scene_view.img_to_screen(pos)
+		# collect animation: the overlay enlarges and fades off the scene
+		if _patches.has(id):
+			_scene_view.pop_item(it, _patches[id])
 	_scene_view.sparkle(pos)
 	_found_toast(it["name"], pts, pos)
 	_count_lbl.text = "%d/%d" % [found.size(), items.size()]
@@ -346,6 +359,24 @@ func _on_lose() -> void:
 	Overlays.show_lose("The lanterns dimmed…",
 			"So close — %d trinket%s left" % [left, "" if left == 1 else "s"],
 			Game.restart_current, Game.to_chapter_select)
+
+func _on_rescue_paid() -> void:
+	SaveData.add_currency(-rescue_cost, 0)
+	time_left += float(rescue_seconds)
+	# calm the urgency styling back down
+	_timer_style.border_color = Color(T.AMBER, 0.55)
+	_timer_lbl.add_theme_color_override("font_color", T.GOLD)
+	running = true
+	_update_timer()
+
+func _on_give_up() -> void:
+	# hardcore: the whole chapter resets
+	SaveData.chapter_progress[chapter_id] = 0
+	SaveData.save()
+	Overlays.show_lose("The lanterns went out…",
+			"Chapter progress lost — it restarts from stage 1",
+			func(): Game.play(chapter_id, 1),
+			Game.to_chapter_select)
 
 func _on_quit() -> void:
 	# timer keeps running behind the confirm — leaving is free, stalling isn't
@@ -504,6 +535,27 @@ class SceneView extends Control:
 			var fx := fmod(w * 0.13 * i + t * (5.0 + i), w)
 			var fy := 140.0 + 180.0 * fposmod(sin(t * 0.35 + i * 2.1), 1.0)
 			draw_circle(Vector2(fx, fy), 1.5, Color(T.GOLD, 0.25 + 0.2 * sin(t * 2.0 + i)))
+
+	func pop_item(it: Dictionary, tex: Texture2D) -> void:
+		## Found feedback: the item's overlay layer scales up and fades away,
+		## revealing the untouched base underneath.
+		var s := img_scale()
+		var tr := TextureRect.new()
+		tr.texture = tex
+		tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		tr.stretch_mode = TextureRect.STRETCH_SCALE
+		tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var dst_size := Vector2(it["ps"], it["ps"]) * s
+		tr.position = Vector2(it["px"], it["py"]) * s - _img_offset()
+		tr.size = dst_size
+		tr.pivot_offset = dst_size / 2.0
+		add_child(tr)
+		var tw := tr.create_tween()
+		tw.set_parallel(true)
+		tw.tween_property(tr, "scale", Vector2(1.35, 1.35), 0.3) \
+				.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+		tw.tween_property(tr, "modulate:a", 0.0, 0.3).set_delay(0.12)
+		tw.chain().tween_callback(tr.queue_free)
 
 	func sparkle(pos: Vector2) -> void:
 		add_child(Sparkle.new(pos))
